@@ -41,6 +41,18 @@ export default function RegistroFacturasPage() {
   const sumatoriaActual = listaTransportes.reduce((acc, item) => acc + item.valor, 0);
   const diferencia = valorTotalFactura - sumatoriaActual;
 
+  // Formatea la factura insertando el guion automáticamente tras el 3er dígito.
+  // Acepta tanto tecleo manual como pegado de texto sin guion.
+  const formatNumeroFactura = (raw: string) => {
+    const soloDigitos = raw.replace(/\D/g, '').slice(0, 15);
+    if (soloDigitos.length <= 3) return soloDigitos;
+    return `${soloDigitos.slice(0, 3)}-${soloDigitos.slice(3)}`;
+  };
+
+  const handleNumeroFacturaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNumeroFactura(formatNumeroFactura(e.target.value));
+  };
+
   const handleValidarFactura = async () => {
     const facturaRegex = /^\d{3}-\d{12}$/;
     const proveedorLimpio = codigoProveedor.trim();
@@ -214,7 +226,7 @@ export default function RegistroFacturasPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="factura" className="font-bold text-sm uppercase tracking-wide">Número de Factura</Label>
-              <Input id="factura" placeholder="000-000000000000" value={numeroFactura} disabled={facturaValidada} onChange={(e) => setNumeroFactura(e.target.value)} className="text-xl py-6 font-mono tracking-widest" />
+              <Input id="factura" placeholder="000-000000000000" value={numeroFactura} disabled={facturaValidada} onChange={handleNumeroFacturaChange} inputMode="numeric" maxLength={16} className="text-xl py-6 font-mono tracking-widest" />
             </div>
             {!facturaValidada ? (
               <Button className="w-full py-8 text-xl font-black shadow-2xl" onClick={handleValidarFactura} disabled={loadingFactura}>
