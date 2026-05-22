@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, FileText, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown } from 'lucide-react';
+import { Loader2, FileText, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown, FileDown } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface RegistroFactura {
   id: string;
@@ -57,6 +59,57 @@ export default function DashboardPage() {
   });
 
   const totalMonto = registrosFiltrados.reduce((acc, r) => acc + r.valorTotal, 0);
+
+  const handleDownloadPDF = () => {
+    if (registrosFiltrados.length === 0) return;
+
+    const doc = new jsPDF();
+    const dateStr = selectedDate ? format(selectedDate, "dd 'de' MMMM, yyyy", { locale: es }) : "Todos los registros";
+
+    // Header del PDF
+    doc.setFontSize(18);
+    doc.setTextColor(0, 85, 184); // Color primario #0055b8
+    doc.text('CHAIDE - DETALLES DE FACTURACIÓN', 14, 22);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Reporte de registros: ${dateStr}`, 14, 30);
+    doc.text(`Monto total del periodo: $${totalMonto.toFixed(2)}`, 14, 37);
+
+    // Tabla de datos
+    const tableData = registrosFiltrados.map(reg => [
+      format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
+      reg.numeroGasto || 'N/A',
+      reg.numeroFactura,
+      reg.transporte || 'N/A',
+      `$${reg.valorTotal.toFixed(2)}`,
+      reg.estado
+    ]);
+
+    autoTable(doc, {
+      startY: 45,
+      head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado']],
+      body: tableData,
+      headStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [240, 244, 248] },
+      styles: { fontSize: 9, cellPadding: 3 },
+    });
+
+    // Footer
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text(
+        `Generado el ${format(new Date(), "dd/MM/yyyy HH:mm:ss")} - Página ${i} de ${pageCount}`,
+        14,
+        doc.internal.pageSize.height - 10
+      );
+    }
+
+    doc.save(`Reporte_Facturacion_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
+  };
 
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-gray-50/50">
@@ -150,9 +203,21 @@ export default function DashboardPage() {
                 }
               </CardDescription>
             </div>
-            <Badge variant="outline" className="px-4 py-1 font-bold text-primary border-primary/20 bg-primary/5">
-              FILTRADO ACTIVO
-            </Badge>
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleDownloadPDF}
+                disabled={registrosFiltrados.length === 0}
+                className="border-primary text-primary hover:bg-primary/10 font-bold h-9 px-4"
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                EXPORTAR PDF
+              </Button>
+              <Badge variant="outline" className="px-4 py-1 font-bold text-primary border-primary/20 bg-primary/5">
+                FILTRADO ACTIVO
+              </Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
