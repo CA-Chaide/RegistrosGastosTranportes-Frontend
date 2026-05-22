@@ -75,6 +75,7 @@ export default function RegistroFacturasPage() {
       const items = resp?.data || resp || [];
       if (Array.isArray(items) && items.length > 0) {
         const item = items[0];
+        // Buscamos el valor total en el campo 'Valor' o variantes comunes
         const total = parseFloat(item.Valor || item.VALOR || item.valor || 0);
         
         if (total <= 0) {
@@ -96,6 +97,7 @@ export default function RegistroFacturasPage() {
   };
 
   const handleAgregarTransporte = async () => {
+    // Captura inmediata para evitar cierres obsoletos
     const valorABuscar = transporteActual.trim();
     const proveedor = codigoProveedor.trim();
     
@@ -127,9 +129,9 @@ export default function RegistroFacturasPage() {
         // Mapeo robusto de monto
         const itemValor = parseFloat(item.valorGasto || item.ValorGasto || item.VALOR || item.valor || 0);
         
-        // Mapeo robusto de Gasto y Placa (buscando alias comunes)
-        const gasto = item.NumeroGasto || item.numeroGasto || item.num_gasto || item.NUM_GASTO || item.Gasto || 'N/A';
-        const placa = item.Placa || item.placa || item.PLACA || item.Vehiculo || item.placa_vehiculo || 'N/A';
+        // Mapeo robusto de Gasto y Placa (buscando alias comunes y específicos)
+        const gasto = item.NumeroGasto || item.numeroGasto || item.Gasto || item.GASTO || item.num_gasto || item.NUM_GASTO || 'N/A';
+        const placa = item.Placa || item.placa || item.PLACA || item.Vehiculo || item.vehiculo || item.VEHICULO || item.placa_vehiculo || item.PLACA_VEHICULO || 'N/A';
 
         const nuevoTransporte: TransportItem = {
           id: crypto.randomUUID(),
@@ -141,7 +143,9 @@ export default function RegistroFacturasPage() {
         };
 
         setListaTransportes(prev => [...prev, nuevoTransporte]);
-        setTransporteActual('');
+        setTransporteActual(''); // Limpia para el siguiente ingreso
+        
+        // Devuelve el foco al input para agilidad profesional
         if (transportInputRef.current) transportInputRef.current.focus();
         
         toast({ title: "Agregado", description: `Transporte ${valorABuscar} vinculado.` });
