@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -52,7 +51,6 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  // Filtrar registros por la fecha seleccionada
   const registrosFiltrados = registros.filter(reg => {
     if (!selectedDate) return true;
     return isSameDay(new Date(reg.fechaRegistro), selectedDate);
@@ -66,9 +64,8 @@ export default function DashboardPage() {
     const doc = new jsPDF();
     const dateStr = selectedDate ? format(selectedDate, "dd 'de' MMMM, yyyy", { locale: es }) : "Todos los registros";
 
-    // Header del PDF
     doc.setFontSize(18);
-    doc.setTextColor(0, 85, 184); // Color primario #0055b8
+    doc.setTextColor(0, 85, 184);
     doc.text('CHAIDE - DETALLES DE FACTURACIÓN', 14, 22);
     
     doc.setFontSize(11);
@@ -76,7 +73,6 @@ export default function DashboardPage() {
     doc.text(`Reporte de registros: ${dateStr}`, 14, 30);
     doc.text(`Monto total del periodo: $${totalMonto.toFixed(2)}`, 14, 37);
 
-    // Tabla de datos
     const tableData = registrosFiltrados.map(reg => [
       format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
       reg.numeroGasto || 'N/A',
@@ -95,7 +91,6 @@ export default function DashboardPage() {
       styles: { fontSize: 9, cellPadding: 3 },
     });
 
-    // Footer
     const pageCount = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -175,7 +170,7 @@ export default function DashboardPage() {
             <Package className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black tracking-tighter">--</div>
+            <div className="text-2xl font-black tracking-tighter">{registrosFiltrados.length}</div>
             <p className="text-xs text-muted-foreground mt-1">Unidades vinculadas</p>
           </CardContent>
         </Card>
@@ -195,7 +190,7 @@ export default function DashboardPage() {
         <CardHeader className="bg-white border-b px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl font-black text-primary">DETALLES DE FACTURACIÓN</CardTitle>
+              <CardTitle className="text-2xl font-black text-primary uppercase">Detalles de Facturación</CardTitle>
               <CardDescription className="font-medium">
                 {selectedDate 
                   ? `Mostrando registros del ${format(selectedDate, "d 'de' MMMM", { locale: es })}`
@@ -231,11 +226,11 @@ export default function DashboardPage() {
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[180px] font-black text-xs uppercase text-primary py-5 px-8">Fecha de Registro</TableHead>
-                    <TableHead className="font-black text-xs uppercase text-primary">Número de Gasto</TableHead>
-                    <TableHead className="font-black text-xs uppercase text-primary">Número de Factura</TableHead>
-                    <TableHead className="font-black text-xs uppercase text-primary">Transporte</TableHead>
-                    <TableHead className="text-right font-black text-xs uppercase text-primary">Monto Total</TableHead>
+                    <TableHead className="w-[180px] font-black text-xs uppercase text-primary py-5 px-8 text-center">Fecha de Registro</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-primary text-center">Número de Gasto</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-primary text-center">Número de Factura</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-primary text-center">Transporte</TableHead>
+                    <TableHead className="text-right font-black text-xs uppercase text-primary px-8">Monto Total</TableHead>
                     <TableHead className="text-center font-black text-xs uppercase text-primary px-8">Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -249,7 +244,7 @@ export default function DashboardPage() {
                   ) : (
                     registrosFiltrados.map((item) => (
                       <TableRow key={item.id} className="hover:bg-primary/5 transition-colors border-b">
-                        <TableCell className="py-4 px-8">
+                        <TableCell className="py-4 px-8 text-center">
                           <div className="flex flex-col">
                             <span className="font-bold text-sm text-gray-800">
                               {format(new Date(item.fechaRegistro), "dd/MM/yyyy", { locale: es })}
@@ -259,19 +254,19 @@ export default function DashboardPage() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-bold text-muted-foreground">
+                        <TableCell className="font-bold text-muted-foreground text-center">
                           {item.numeroGasto || 'N/A'}
                         </TableCell>
-                        <TableCell className="font-black text-gray-900 tabular-nums">
+                        <TableCell className="font-black text-gray-900 tabular-nums text-center">
                           {item.numeroFactura}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-2">
                             <div className="h-2 w-2 rounded-full bg-primary" />
                             <span className="font-black text-primary">{item.transporte || 'N/A'}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right px-8">
                           <span className="text-lg font-black text-primary tracking-tighter">
                             ${item.valorTotal.toFixed(2)}
                           </span>

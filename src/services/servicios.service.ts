@@ -18,7 +18,6 @@ export const serviciosService = {
         'Pragma': 'no-cache',
         'Expires': '0'
       },
-      // Ajustamos las claves a minúsculas para coincidir con el estándar de los otros métodos
       body: JSON.stringify({ Transporte: transporte, AgenteTransporte: codigoProveedor }),
       cache: 'no-store'
     });
@@ -75,24 +74,29 @@ export const serviciosService = {
     }).catch(() => null);
     
     if (!response || !response.ok) {
+      const now = new Date().toISOString();
       return {
         data: [
           { 
             id: '1', 
             numeroRegistro: 'REG-845122', 
             codigoProveedor: '5220802', 
-            numeroFactura: '001101000000840', 
+            numeroFactura: '001-001-0000840', 
+            numeroGasto: 'G-10294',
+            transporte: '0000534650',
             valorTotal: 511.00, 
-            fechaRegistro: '2024-03-20T10:30:00Z',
+            fechaRegistro: now,
             estado: 'Procesado'
           },
           { 
             id: '2', 
             numeroRegistro: 'REG-992103', 
             codigoProveedor: '5220802', 
-            numeroFactura: '001101000000955', 
+            numeroFactura: '001-001-0000955', 
+            numeroGasto: 'G-10295',
+            transporte: '0000534651',
             valorTotal: 1245.50, 
-            fechaRegistro: '2024-03-21T15:45:00Z',
+            fechaRegistro: now,
             estado: 'Procesado'
           }
         ],
