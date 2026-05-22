@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, FileText, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown, FileDown } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown, FileDown } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
@@ -36,7 +36,7 @@ export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Inicializamos con el día de hoy como rango inicial (un solo día seleccionado)
+  // Inicializamos con el día de hoy como rango inicial
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
     to: new Date(),
@@ -131,8 +131,8 @@ export default function DashboardPage() {
     <div className="flex-1 space-y-8 p-8 pt-6 bg-gray-50/50">
       <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-primary uppercase">Panel de Control Operativo</h2>
-          <p className="text-muted-foreground font-medium">Resumen detallado de facturación y transportes registrados.</p>
+          <h2 className="text-4xl font-black tracking-tighter text-primary uppercase">Panel de Control Operativo</h2>
+          <p className="text-muted-foreground font-medium text-lg">Resumen detallado de facturación y transportes registrados.</p>
         </div>
         <div className="flex items-center">
            <Popover>
@@ -140,28 +140,28 @@ export default function DashboardPage() {
                 <Button 
                   variant="outline" 
                   className={cn(
-                    "bg-white h-12 px-6 rounded-xl shadow-sm border flex items-center gap-3 hover:bg-gray-50 transition-all min-w-[280px]",
+                    "bg-white h-14 px-6 rounded-2xl shadow-md border-2 border-primary/10 flex items-center gap-4 hover:bg-gray-50 transition-all min-w-[320px] group",
                     !dateRange && "text-muted-foreground"
                   )}
                 >
-                  <CalendarIcon className="h-5 w-5 text-primary" />
-                  <span className="text-sm font-bold uppercase tracking-tighter">
+                  <CalendarIcon className="h-6 w-6 text-primary group-hover:scale-110 transition-transform" />
+                  <span className="text-base font-black uppercase tracking-tight text-gray-700">
                     {dateRange?.from ? (
                       dateRange.to ? (
                         <>
-                          {format(dateRange.from, "d MMM", { locale: es })} - {format(dateRange.to, "d MMM, yyyy", { locale: es })}
+                          {format(dateRange.from, "d MMM", { locale: es }).toUpperCase()} - {format(dateRange.to, "d MMM, yyyy", { locale: es }).toUpperCase()}
                         </>
                       ) : (
-                        format(dateRange.from, "EEEE, d 'de' MMMM", { locale: es })
+                        format(dateRange.from, "d 'DE' MMMM, yyyy", { locale: es }).toUpperCase()
                       )
                     ) : (
-                      "Seleccionar Periodo"
+                      "SELECCIONAR PERIODO"
                     )}
                   </span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
+                  <ChevronDown className="h-5 w-5 text-muted-foreground ml-auto group-data-[state=open]:rotate-180 transition-transform" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
+              <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-3xl overflow-hidden" align="end">
                 <Calendar
                   initialFocus
                   mode="range"
@@ -170,61 +170,70 @@ export default function DashboardPage() {
                   onSelect={setDateRange}
                   numberOfMonths={2}
                   locale={es}
+                  className="p-6 bg-white"
                 />
               </PopoverContent>
            </Popover>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-primary shadow-md">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-l-8 border-l-primary shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-black uppercase tracking-wider text-muted-foreground">Total Facturado</CardTitle>
-            <DollarSign className="h-4 w-4 text-primary" />
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Total Facturado</CardTitle>
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <DollarSign className="h-5 w-5 text-primary" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black tracking-tighter">${totalMonto.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Monto del periodo seleccionado</p>
+            <div className="text-3xl font-black tracking-tighter text-primary">${totalMonto.toFixed(2)}</div>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Periodo seleccionado</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-green-500 shadow-md">
+        <Card className="border-l-8 border-l-green-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-black uppercase tracking-wider text-muted-foreground">Registros Exitosos</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Registros Exitosos</CardTitle>
+            <div className="p-2 bg-green-100 rounded-lg">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black tracking-tighter">{registrosFiltrados.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Facturas procesadas en este periodo</p>
+            <div className="text-3xl font-black tracking-tighter text-green-700">{registrosFiltrados.length}</div>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas procesadas</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-blue-500 shadow-md">
+        <Card className="border-l-8 border-l-blue-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-black uppercase tracking-wider text-muted-foreground">Transportes</CardTitle>
-            <Package className="h-4 w-4 text-blue-500" />
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Transportes</CardTitle>
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Package className="h-5 w-5 text-blue-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black tracking-tighter">{registrosFiltrados.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Unidades vinculadas</p>
+            <div className="text-3xl font-black tracking-tighter text-blue-700">{registrosFiltrados.length}</div>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Unidades vinculadas</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-orange-500 shadow-md">
+        <Card className="border-l-8 border-l-orange-500 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-black uppercase tracking-wider text-muted-foreground">Pendientes</CardTitle>
-            <Clock className="h-4 w-4 text-orange-500" />
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Pendientes</CardTitle>
+            <div className="p-2 bg-orange-100 rounded-lg">
+              <Clock className="h-5 w-5 text-orange-500" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black tracking-tighter">0</div>
-            <p className="text-xs text-muted-foreground mt-1">Por liquidar</p>
+            <div className="text-3xl font-black tracking-tighter text-orange-600">0</div>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Por liquidar</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="shadow-2xl border-none">
-        <CardHeader className="bg-white border-b px-8 py-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <Card className="shadow-2xl border-none rounded-3xl overflow-hidden">
+        <CardHeader className="bg-white border-b-2 border-gray-100 px-10 py-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-              <CardTitle className="text-2xl font-black text-primary uppercase">Detalles de Facturación</CardTitle>
-              <CardDescription className="font-medium">
+              <CardTitle className="text-3xl font-black text-primary uppercase tracking-tighter">Detalles de Facturación</CardTitle>
+              <CardDescription className="font-bold text-base mt-1 text-gray-500">
                 {dateRange?.from 
                   ? dateRange.to 
                     ? `Registros desde ${format(dateRange.from, "d 'de' MMMM", { locale: es })} hasta ${format(dateRange.to, "d 'de' MMMM", { locale: es })}`
@@ -236,15 +245,15 @@ export default function DashboardPage() {
             <div className="flex items-center gap-4">
               <Button 
                 variant="outline" 
-                size="sm" 
+                size="lg" 
                 onClick={handleDownloadPDF}
                 disabled={registrosFiltrados.length === 0}
-                className="border-primary text-primary hover:bg-primary/10 font-bold h-9 px-4"
+                className="border-2 border-primary text-primary hover:bg-primary/5 font-black h-12 px-6 rounded-xl transition-all"
               >
-                <FileDown className="mr-2 h-4 w-4" />
+                <FileDown className="mr-3 h-5 w-5" />
                 EXPORTAR PDF
               </Button>
-              <Badge variant="outline" className="px-4 py-1 font-bold text-primary border-primary/20 bg-primary/5">
+              <Badge className="px-5 py-2 font-black text-xs uppercase tracking-widest bg-primary/10 text-primary border-none">
                 FILTRADO ACTIVO
               </Badge>
             </div>
@@ -252,62 +261,62 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="text-muted-foreground font-black text-xs uppercase tracking-[0.2em]">Sincronizando datos...</p>
+            <div className="flex flex-col items-center justify-center py-32 gap-6">
+              <Loader2 className="h-14 w-14 animate-spin text-primary opacity-50" />
+              <p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Sincronizando datos operativos...</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-muted/30">
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[180px] font-black text-xs uppercase text-primary py-5 px-8 text-center">Fecha de Registro</TableHead>
-                    <TableHead className="font-black text-xs uppercase text-primary text-center">Número de Gasto</TableHead>
-                    <TableHead className="font-black text-xs uppercase text-primary text-center">Número de Factura</TableHead>
-                    <TableHead className="font-black text-xs uppercase text-primary text-center">Transporte</TableHead>
-                    <TableHead className="text-right font-black text-xs uppercase text-primary px-8">Monto Total</TableHead>
-                    <TableHead className="text-center font-black text-xs uppercase text-primary px-8">Status</TableHead>
+                <TableHeader className="bg-gray-50">
+                  <TableRow className="hover:bg-transparent border-b-2">
+                    <TableHead className="w-[200px] font-black text-xs uppercase text-gray-500 py-6 px-10 text-center tracking-widest">Fecha</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Gasto</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">Transporte</TableHead>
+                    <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto</TableHead>
+                    <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {registrosFiltrados.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-20 text-muted-foreground italic font-medium">
-                        No hay registros disponibles para el periodo seleccionado.
+                      <TableCell colSpan={6} className="text-center py-24 text-muted-foreground italic font-bold text-lg">
+                        No se encontraron registros para el rango seleccionado.
                       </TableCell>
                     </TableRow>
                   ) : (
                     registrosFiltrados.map((item) => (
-                      <TableRow key={item.id} className="hover:bg-primary/5 transition-colors border-b">
-                        <TableCell className="py-4 px-8 text-center">
+                      <TableRow key={item.id} className="hover:bg-primary/5 transition-all border-b border-gray-100 group">
+                        <TableCell className="py-6 px-10 text-center">
                           <div className="flex flex-col">
-                            <span className="font-bold text-sm text-gray-800">
+                            <span className="font-black text-sm text-gray-900 group-hover:text-primary transition-colors">
                               {format(new Date(item.fechaRegistro), "dd/MM/yyyy", { locale: es })}
                             </span>
-                            <span className="text-[10px] text-muted-foreground font-black uppercase">
+                            <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
                               {format(new Date(item.fechaRegistro), "HH:mm 'HRS'")}
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-bold text-muted-foreground text-center">
+                        <TableCell className="font-bold text-gray-500 text-center text-sm">
                           {item.numeroGasto || 'N/A'}
                         </TableCell>
-                        <TableCell className="font-black text-gray-900 tabular-nums text-center">
+                        <TableCell className="font-black text-gray-900 tabular-nums text-center tracking-tight">
                           {item.numeroFactura}
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-primary" />
-                            <span className="font-black text-primary">{item.transporte || 'N/A'}</span>
+                            <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                            <span className="font-black text-primary tracking-tight">{item.transporte || 'N/A'}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right px-8">
-                          <span className="text-lg font-black text-primary tracking-tighter">
+                        <TableCell className="text-right px-10">
+                          <span className="text-xl font-black text-primary tracking-tighter">
                             ${item.valorTotal.toFixed(2)}
                           </span>
                         </TableCell>
-                        <TableCell className="text-center px-8">
-                          <Badge className="bg-green-600 hover:bg-green-700 px-3 py-1 font-black uppercase text-[9px] tracking-widest shadow-sm">
+                        <TableCell className="text-center px-10">
+                          <Badge className="bg-green-600 hover:bg-green-700 px-4 py-1 font-black uppercase text-[9px] tracking-widest shadow-md border-none">
                             {item.estado}
                           </Badge>
                         </TableCell>
@@ -321,8 +330,8 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
       
-      <div className="text-center py-4">
-        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">
+      <div className="text-center py-6">
+        <p className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.4em] opacity-60">
           Chaide - Sistema de Gestión de Gastos de Transportes v1.0
         </p>
       </div>
