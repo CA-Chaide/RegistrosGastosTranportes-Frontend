@@ -92,7 +92,7 @@ export default function DashboardPage() {
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Reporte de registros: ${dateStr}`, 14, 30);
-    doc.text(`Monto total del periodo: $${totalMonto.toFixed(2)}`, 14, 37);
+    // Se elimina la línea de texto del total superior como se solicitó
 
     const tableData = registrosFiltrados.map(reg => [
       format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
@@ -104,10 +104,17 @@ export default function DashboardPage() {
     ]);
 
     autoTable(doc, {
-      startY: 45,
+      startY: 40,
       head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado']],
       body: tableData,
+      // Se añade la sumatoria en el pie de página de la tabla
+      foot: [[
+        { content: 'TOTAL ACUMULADO DEL PERIODO', colSpan: 4, styles: { halign: 'right' } },
+        { content: `$${totalMonto.toFixed(2)}`, styles: { halign: 'right' } },
+        ''
+      ]],
       headStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
+      footStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [240, 244, 248] },
       styles: { fontSize: 9, cellPadding: 3 },
     });
