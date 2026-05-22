@@ -41,7 +41,6 @@ export default function RegistroFacturasPage() {
   const sumatoriaActual = listaTransportes.reduce((acc, item) => acc + item.valor, 0);
   const diferencia = valorTotalFactura - sumatoriaActual;
 
-  // Formatea la factura insertando el guion automáticamente tras el 3er dígito.
   const formatNumeroFactura = (raw: string) => {
     const soloDigitos = raw.replace(/\D/g, '').slice(0, 15);
     if (soloDigitos.length <= 3) return soloDigitos;
@@ -75,8 +74,7 @@ export default function RegistroFacturasPage() {
       const items = resp?.data || resp || [];
       if (Array.isArray(items) && items.length > 0) {
         const item = items[0];
-        // Buscamos el valor total en el campo 'Valor' o variantes comunes
-        const total = parseFloat(item.Valor || item.VALOR || item.valor || 0);
+        const total = parseFloat(item.Valor || item.VALOR || item.valor || item.monto || 0);
         
         if (total <= 0) {
           toast({ title: "Valor inválido", description: "La factura no tiene un monto procesable.", variant: "destructive" });
@@ -97,7 +95,6 @@ export default function RegistroFacturasPage() {
   };
 
   const handleAgregarTransporte = async () => {
-    // Captura inmediata para evitar cierres obsoletos
     const valorABuscar = transporteActual.trim();
     const proveedor = codigoProveedor.trim();
     
@@ -116,7 +113,6 @@ export default function RegistroFacturasPage() {
       if (Array.isArray(items) && items.length > 0) {
         const item = items[0];
         
-        // Mapeo robusto de estatus
         const rawEstatus = item.Estatus || item.estado || item.ESTADO || item.estatus || 'A';
         const estatus = String(rawEstatus).toUpperCase();
         
@@ -126,12 +122,11 @@ export default function RegistroFacturasPage() {
           return;
         }
 
-        // Mapeo robusto de monto
-        const itemValor = parseFloat(item.valorGasto || item.ValorGasto || item.VALOR || item.valor || 0);
+        const itemValor = parseFloat(item.valorGasto || item.ValorGasto || item.VALOR || item.valor || item.Monto || 0);
         
-        // Mapeo robusto de Gasto y Placa (buscando alias comunes y específicos)
-        const gasto = item.NumeroGasto || item.numeroGasto || item.Gasto || item.GASTO || item.num_gasto || item.NUM_GASTO || 'N/A';
-        const placa = item.Placa || item.placa || item.PLACA || item.Vehiculo || item.vehiculo || item.VEHICULO || item.placa_vehiculo || item.PLACA_VEHICULO || 'N/A';
+        // Mapeo exhaustivo para encontrar Gasto y Placa según posibles respuestas del servidor
+        const gasto = item.NumeroGasto || item.numeroGasto || item.Gasto || item.GASTO || item.num_gasto || item.NUMERO_GASTO || item.secuencia || 'N/A';
+        const placa = item.Placa || item.placa || item.PLACA || item.Vehiculo || item.vehiculo || item.VEHICULO || item.PlacaVehiculo || item.placa_vehiculo || item.Matricula || 'N/A';
 
         const nuevoTransporte: TransportItem = {
           id: crypto.randomUUID(),
@@ -143,9 +138,8 @@ export default function RegistroFacturasPage() {
         };
 
         setListaTransportes(prev => [...prev, nuevoTransporte]);
-        setTransporteActual(''); // Limpia para el siguiente ingreso
+        setTransporteActual('');
         
-        // Devuelve el foco al input para agilidad profesional
         if (transportInputRef.current) transportInputRef.current.focus();
         
         toast({ title: "Agregado", description: `Transporte ${valorABuscar} vinculado.` });
@@ -308,7 +302,7 @@ export default function RegistroFacturasPage() {
                       <TableRow key={item.id} className="hover:bg-primary/5 group">
                         <TableCell className="font-black text-primary text-lg">{item.numeroTransporte}</TableCell>
                         <TableCell className="font-bold text-muted-foreground">{item.numeroGasto}</TableCell>
-                        <TableCell className="font-bold">{item.placa}</TableCell>
+                        <TableCell className="font-black text-gray-800">{item.placa}</TableCell>
                         <TableCell>
                           <Badge className={item.estatus === 'A' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
                             {item.estatus}
