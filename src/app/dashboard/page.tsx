@@ -6,9 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, FileText, Calendar, DollarSign, Package, CheckCircle2, Clock } from 'lucide-react';
-import { format } from 'date-fns';
+import { Loader2, FileText, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown } from 'lucide-react';
+import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface RegistroFactura {
   id: string;
@@ -18,7 +26,6 @@ interface RegistroFactura {
   valorTotal: number;
   fechaRegistro: string;
   estado: string;
-  // Estos campos suelen venir en el detalle o se pueden inferir del primer item
   numeroGasto?: string;
   transporte?: string;
 }
@@ -26,6 +33,7 @@ interface RegistroFactura {
 export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
   useEffect(() => {
     const loadData = async () => {
@@ -42,7 +50,13 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  const totalMonto = registros.reduce((acc, r) => acc + r.valorTotal, 0);
+  // Filtrar registros por la fecha seleccionada
+  const registrosFiltrados = registros.filter(reg => {
+    if (!selectedDate) return true;
+    return isSameDay(new Date(reg.fechaRegistro), selectedDate);
+  });
+
+  const totalMonto = registrosFiltrados.reduce((acc, r) => acc + r.valorTotal, 0);
 
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-gray-50/50">
@@ -52,12 +66,32 @@ export default function DashboardPage() {
           <p className="text-muted-foreground font-medium">Resumen detallado de facturación y transportes registrados.</p>
         </div>
         <div className="flex items-center space-x-2">
-           <div className="bg-white p-2 px-4 rounded-xl shadow-sm border flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              <span className="text-sm font-bold uppercase tracking-tighter">
-                {format(new Date(), "EEEE, d 'de' MMMM", { locale: es })}
-              </span>
-           </div>
+           <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className={cn(
+                    "bg-white h-12 px-6 rounded-xl shadow-sm border flex items-center gap-3 hover:bg-gray-50 transition-all",
+                    !selectedDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="h-5 w-5 text-primary" />
+                  <span className="text-sm font-bold uppercase tracking-tighter">
+                    {selectedDate ? format(selectedDate, "EEEE, d 'de' MMMM", { locale: es }) : "Seleccionar Fecha"}
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground ml-2" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  initialFocus
+                  locale={es}
+                />
+              </PopoverContent>
+           </Popover>
         </div>
       </div>
 
@@ -69,7 +103,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black tracking-tighter">${totalMonto.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Acumulado de registros actuales</p>
+            <p className="text-xs text-muted-foreground mt-1">Monto de la fecha seleccionada</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-green-500 shadow-md">
@@ -78,8 +112,8 @@ export default function DashboardPage() {
             <CheckCircle2 className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black tracking-tighter">{registros.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Facturas procesadas hoy</p>
+            <div className="text-2xl font-black tracking-tighter">{registrosFiltrados.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Facturas procesadas en esta fecha</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-blue-500 shadow-md">
@@ -109,10 +143,15 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-2xl font-black text-primary">DETALLES DE FACTURACIÓN</CardTitle>
-              <CardDescription className="font-medium">Listado maestro de transacciones y transportes</CardDescription>
+              <CardDescription className="font-medium">
+                {selectedDate 
+                  ? `Mostrando registros del ${format(selectedDate, "d 'de' MMMM", { locale: es })}`
+                  : "Seleccione una fecha para ver el detalle"
+                }
+              </CardDescription>
             </div>
             <Badge variant="outline" className="px-4 py-1 font-bold text-primary border-primary/20 bg-primary/5">
-              ACTUALIZADO EN TIEMPO REAL
+              FILTRADO ACTIVO
             </Badge>
           </div>
         </CardHeader>
@@ -127,7 +166,7 @@ export default function DashboardPage() {
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[180px] font-black text-xs uppercase text-primary py-5 px-8">Fecha de Creación</TableHead>
+                    <TableHead className="w-[180px] font-black text-xs uppercase text-primary py-5 px-8">Fecha de Registro</TableHead>
                     <TableHead className="font-black text-xs uppercase text-primary">Número de Gasto</TableHead>
                     <TableHead className="font-black text-xs uppercase text-primary">Número de Factura</TableHead>
                     <TableHead className="font-black text-xs uppercase text-primary">Transporte</TableHead>
@@ -136,14 +175,14 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {registros.length === 0 ? (
+                  {registrosFiltrados.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-20 text-muted-foreground italic font-medium">
-                        No hay registros disponibles para mostrar.
+                        No hay registros disponibles para la fecha seleccionada.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    registros.map((item) => (
+                    registrosFiltrados.map((item) => (
                       <TableRow key={item.id} className="hover:bg-primary/5 transition-colors border-b">
                         <TableCell className="py-4 px-8">
                           <div className="flex flex-col">
@@ -156,7 +195,7 @@ export default function DashboardPage() {
                           </div>
                         </TableCell>
                         <TableCell className="font-bold text-muted-foreground">
-                          {item.numeroGasto || '845122'}
+                          {item.numeroGasto || 'N/A'}
                         </TableCell>
                         <TableCell className="font-black text-gray-900 tabular-nums">
                           {item.numeroFactura}
@@ -164,7 +203,7 @@ export default function DashboardPage() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <div className="h-2 w-2 rounded-full bg-primary" />
-                            <span className="font-black text-primary">{item.transporte || '534650'}</span>
+                            <span className="font-black text-primary">{item.transporte || 'N/A'}</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
