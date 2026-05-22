@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { serviciosService } from '@/services/servicios.service';
 import { Loader2, FileText, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown, FileDown } from 'lucide-react';
-import { format, isSameDay } from 'date-fns';
+import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { DateRange } from "react-day-picker";
 
 interface RegistroFactura {
   id: string;
@@ -34,7 +35,12 @@ interface RegistroFactura {
 export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  
+  // Inicializamos con el día de hoy como rango inicial (un solo día seleccionado)
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: new Date(),
+    to: new Date(),
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -52,8 +58,13 @@ export default function DashboardPage() {
   }, []);
 
   const registrosFiltrados = registros.filter(reg => {
-    if (!selectedDate) return true;
-    return isSameDay(new Date(reg.fechaRegistro), selectedDate);
+    if (!dateRange?.from) return true;
+    
+    const fechaReg = new Date(reg.fechaRegistro);
+    const start = startOfDay(dateRange.from);
+    const end = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+    
+    return isWithinInterval(fechaReg, { start, end });
   });
 
   const totalMonto = registrosFiltrados.reduce((acc, r) => acc + r.valorTotal, 0);
@@ -62,7 +73,17 @@ export default function DashboardPage() {
     if (registrosFiltrados.length === 0) return;
 
     const doc = new jsPDF();
-    const dateStr = selectedDate ? format(selectedDate, "dd 'de' MMMM, yyyy", { locale: es }) : "Todos los registros";
+    let dateStr = "";
+    
+    if (dateRange?.from) {
+      if (dateRange.to) {
+        dateStr = `Del ${format(dateRange.from, "dd/MM/yyyy")} al ${format(dateRange.to, "dd/MM/yyyy")}`;
+      } else {
+        dateStr = `Día ${format(dateRange.from, "dd/MM/yyyy")}`;
+      }
+    } else {
+      dateStr = "Todos los registros";
+    }
 
     doc.setFontSize(18);
     doc.setTextColor(0, 85, 184);
@@ -108,34 +129,46 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-gray-50/50">
-      <div className="flex items-center justify-between space-y-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
         <div>
           <h2 className="text-3xl font-black tracking-tight text-primary uppercase">Panel de Control Operativo</h2>
           <p className="text-muted-foreground font-medium">Resumen detallado de facturación y transportes registrados.</p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center">
            <Popover>
               <PopoverTrigger asChild>
                 <Button 
                   variant="outline" 
                   className={cn(
-                    "bg-white h-12 px-6 rounded-xl shadow-sm border flex items-center gap-3 hover:bg-gray-50 transition-all",
-                    !selectedDate && "text-muted-foreground"
+                    "bg-white h-12 px-6 rounded-xl shadow-sm border flex items-center gap-3 hover:bg-gray-50 transition-all min-w-[280px]",
+                    !dateRange && "text-muted-foreground"
                   )}
                 >
                   <CalendarIcon className="h-5 w-5 text-primary" />
                   <span className="text-sm font-bold uppercase tracking-tighter">
-                    {selectedDate ? format(selectedDate, "EEEE, d 'de' MMMM", { locale: es }) : "Seleccionar Fecha"}
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "d MMM", { locale: es })} - {format(dateRange.to, "d MMM, yyyy", { locale: es })}
+                        </>
+                      ) : (
+                        format(dateRange.from, "EEEE, d 'de' MMMM", { locale: es })
+                      )
+                    ) : (
+                      "Seleccionar Periodo"
+                    )}
                   </span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground ml-2" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
                 <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
                   initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
                   locale={es}
                 />
               </PopoverContent>
@@ -151,7 +184,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black tracking-tighter">${totalMonto.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Monto de la fecha seleccionada</p>
+            <p className="text-xs text-muted-foreground mt-1">Monto del periodo seleccionado</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-green-500 shadow-md">
@@ -161,7 +194,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black tracking-tighter">{registrosFiltrados.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Facturas procesadas en esta fecha</p>
+            <p className="text-xs text-muted-foreground mt-1">Facturas procesadas en este periodo</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-blue-500 shadow-md">
@@ -188,13 +221,15 @@ export default function DashboardPage() {
 
       <Card className="shadow-2xl border-none">
         <CardHeader className="bg-white border-b px-8 py-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <CardTitle className="text-2xl font-black text-primary uppercase">Detalles de Facturación</CardTitle>
               <CardDescription className="font-medium">
-                {selectedDate 
-                  ? `Mostrando registros del ${format(selectedDate, "d 'de' MMMM", { locale: es })}`
-                  : "Seleccione una fecha para ver el detalle"
+                {dateRange?.from 
+                  ? dateRange.to 
+                    ? `Registros desde ${format(dateRange.from, "d 'de' MMMM", { locale: es })} hasta ${format(dateRange.to, "d 'de' MMMM", { locale: es })}`
+                    : `Registros del ${format(dateRange.from, "d 'de' MMMM", { locale: es })}`
+                  : "Seleccione un periodo para ver el detalle"
                 }
               </CardDescription>
             </div>
@@ -238,7 +273,7 @@ export default function DashboardPage() {
                   {registrosFiltrados.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-20 text-muted-foreground italic font-medium">
-                        No hay registros disponibles para la fecha seleccionada.
+                        No hay registros disponibles para el periodo seleccionado.
                       </TableCell>
                     </TableRow>
                   ) : (
