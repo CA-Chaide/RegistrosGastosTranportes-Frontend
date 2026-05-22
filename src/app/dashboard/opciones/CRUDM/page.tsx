@@ -42,7 +42,6 @@ export default function RegistroFacturasPage() {
   const diferencia = valorTotalFactura - sumatoriaActual;
 
   // Formatea la factura insertando el guion automáticamente tras el 3er dígito.
-  // Acepta tanto tecleo manual como pegado de texto sin guion.
   const formatNumeroFactura = (raw: string) => {
     const soloDigitos = raw.replace(/\D/g, '').slice(0, 15);
     if (soloDigitos.length <= 3) return soloDigitos;
@@ -97,7 +96,6 @@ export default function RegistroFacturasPage() {
   };
 
   const handleAgregarTransporte = async () => {
-    // CAPTURA DETERMINISTA: Obtenemos el valor del input en este preciso instante
     const valorABuscar = transporteActual.trim();
     const proveedor = codigoProveedor.trim();
     
@@ -115,26 +113,35 @@ export default function RegistroFacturasPage() {
 
       if (Array.isArray(items) && items.length > 0) {
         const item = items[0];
-        const estatus = (item.Estatus || item.estado || item.ESTADO || item.estatus || '').toUpperCase();
+        
+        // Mapeo robusto de estatus
+        const rawEstatus = item.Estatus || item.estado || item.ESTADO || item.estatus || 'A';
+        const estatus = String(rawEstatus).toUpperCase();
         
         if (estatus === 'C') {
           toast({ title: "Concluido", description: `El transporte ${valorABuscar} ya está finalizado.`, variant: "destructive" });
+          setLoadingTransporte(false);
           return;
         }
 
+        // Mapeo robusto de monto
         const itemValor = parseFloat(item.valorGasto || item.ValorGasto || item.VALOR || item.valor || 0);
         
+        // Mapeo robusto de Gasto y Placa (buscando alias comunes)
+        const gasto = item.NumeroGasto || item.numeroGasto || item.num_gasto || item.NUM_GASTO || item.Gasto || 'N/A';
+        const placa = item.Placa || item.placa || item.PLACA || item.Vehiculo || item.placa_vehiculo || 'N/A';
+
         const nuevoTransporte: TransportItem = {
           id: crypto.randomUUID(),
-          numeroTransporte: valorABuscar, // USAMOS EL VALOR QUE BUSCAMOS, NO EL QUE EL SERVER DIGA
-          numeroGasto: item.NumeroGasto || item.numeroGasto || item.NUM_GASTO || 'N/A',
-          estatus: estatus || 'N/A',
-          placa: item.Placa || item.placa || item.PLACA || 'N/A',
+          numeroTransporte: valorABuscar, 
+          numeroGasto: String(gasto),
+          estatus: estatus,
+          placa: String(placa),
           valor: itemValor
         };
 
         setListaTransportes(prev => [...prev, nuevoTransporte]);
-        setTransporteActual(''); // LIMPIEZA INMEDIATA TRAS ÉXITO
+        setTransporteActual('');
         if (transportInputRef.current) transportInputRef.current.focus();
         
         toast({ title: "Agregado", description: `Transporte ${valorABuscar} vinculado.` });
@@ -298,7 +305,11 @@ export default function RegistroFacturasPage() {
                         <TableCell className="font-black text-primary text-lg">{item.numeroTransporte}</TableCell>
                         <TableCell className="font-bold text-muted-foreground">{item.numeroGasto}</TableCell>
                         <TableCell className="font-bold">{item.placa}</TableCell>
-                        <TableCell><Badge className="bg-green-100 text-green-700 border-green-200">{item.estatus}</Badge></TableCell>
+                        <TableCell>
+                          <Badge className={item.estatus === 'A' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
+                            {item.estatus}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-right font-black text-xl tracking-tighter">${item.valor.toFixed(2)}</TableCell>
                         <TableCell className="text-center">
                           <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => setListaTransportes(listaTransportes.filter(t => t.id !== item.id))}><Trash2 className="h-5 w-5" /></Button>
