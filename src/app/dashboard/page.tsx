@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { serviciosService } from '@/services/servicios.service';
 import { Loader2, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown, FileDown } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
@@ -35,6 +36,7 @@ interface RegistroFactura {
 export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
@@ -56,20 +58,52 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  const registrosFiltrados = registros.filter(reg => {
-    if (!dateRange?.from) return true;
-    
-    const fechaReg = new Date(reg.fechaRegistro);
-    const start = startOfDay(dateRange.from);
-    const end = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
-    
-    return isWithinInterval(fechaReg, { start, end });
-  });
+  const registrosFiltrados = useMemo(() => {
+    return registros.filter(reg => {
+      if (!dateRange?.from) return true;
+      const fechaReg = new Date(reg.fechaRegistro);
+      const start = startOfDay(dateRange.from);
+      const end = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+      return isWithinInterval(fechaReg, { start, end });
+    });
+  }, [registros, dateRange]);
 
-  const totalMonto = registrosFiltrados.reduce((acc, r) => acc + r.valorTotal, 0);
+  // Limpiar seleccionados si cambian los filtros y algún seleccionado ya no es visible
+  useEffect(() => {
+    const visibleIds = new Set(registrosFiltrados.map(r => r.id));
+    setSelectedIds(prev => {
+      const next = new Set<string>();
+      prev.forEach(id => {
+        if (visibleIds.has(id)) next.add(id);
+      });
+      return next;
+    });
+  }, [registrosFiltrados]);
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(registrosFiltrados.map(r => r.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectRow = (id: string, checked: boolean) => {
+    const next = new Set(selectedIds);
+    if (checked) {
+      next.add(id);
+    } else {
+      next.delete(id);
+    }
+    setSelectedIds(next);
+  };
+
+  const totalMontoGlobal = registrosFiltrados.reduce((acc, r) => acc + r.valorTotal, 0);
+  const itemsParaExportar = registrosFiltrados.filter(r => selectedIds.has(r.id));
+  const totalMontoExportar = itemsParaExportar.reduce((acc, r) => acc + r.valorTotal, 0);
 
   const handleDownloadPDF = () => {
-    if (registrosFiltrados.length === 0) return;
+    if (itemsParaExportar.length === 0) return;
 
     const doc = new jsPDF();
     let dateStr = "";
@@ -86,13 +120,14 @@ export default function DashboardPage() {
 
     doc.setFontSize(18);
     doc.setTextColor(0, 85, 184);
-    doc.text('CHAIDE - DETALLES DE FACTURACIÓN', 14, 22);
+    doc.text('CHAIDE - REPORTE DE FACTURACIÓN SELECCIONADA', 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(100);
-    doc.text(`Reporte de registros: ${dateStr}`, 14, 30);
+    doc.text(`Periodo: ${dateStr}`, 14, 30);
+    doc.text(`Items seleccionados: ${itemsParaExportar.length}`, 14, 36);
 
-    const tableData = registrosFiltrados.map(reg => [
+    const tableData = itemsParaExportar.map(reg => [
       format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
       reg.numeroGasto || 'N/A',
       reg.numeroFactura,
@@ -102,12 +137,12 @@ export default function DashboardPage() {
     ]);
 
     autoTable(doc, {
-      startY: 40,
+      startY: 42,
       head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado']],
       body: tableData,
       foot: [[
-        { content: 'TOTAL ACUMULADO DEL PERIODO', colSpan: 4, styles: { halign: 'right' } },
-        { content: `$${totalMonto.toFixed(2)}`, styles: { halign: 'right' } },
+        { content: 'TOTAL DE SELECCIÓN', colSpan: 4, styles: { halign: 'right' } },
+        { content: `$${totalMontoExportar.toFixed(2)}`, styles: { halign: 'right' } },
         ''
       ]],
       headStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -128,7 +163,7 @@ export default function DashboardPage() {
       );
     }
 
-    doc.save(`Reporte_Facturacion_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
+    doc.save(`Reporte_Facturacion_Seleccionada_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
   };
 
   return (
@@ -149,7 +184,7 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black tracking-tighter text-primary">${totalMonto.toFixed(2)}</div>
+            <div className="text-3xl font-black tracking-tighter text-primary">${totalMontoGlobal.toFixed(2)}</div>
             <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Periodo seleccionado</p>
           </CardContent>
         </Card>
@@ -248,11 +283,11 @@ export default function DashboardPage() {
                 variant="outline" 
                 size="lg" 
                 onClick={handleDownloadPDF}
-                disabled={registrosFiltrados.length === 0}
+                disabled={selectedIds.size === 0}
                 className="border-2 border-primary text-primary hover:bg-primary/5 font-black h-12 px-6 rounded-xl transition-all"
               >
                 <FileDown className="mr-3 h-5 w-5" />
-                EXPORTAR PDF
+                EXPORTAR PDF {selectedIds.size > 0 && `(${selectedIds.size})`}
               </Button>
               
               <Badge className="px-5 py-2 h-12 flex items-center font-black text-xs uppercase tracking-widest bg-primary/10 text-primary border-none rounded-full">
@@ -272,7 +307,14 @@ export default function DashboardPage() {
               <Table>
                 <TableHeader className="bg-gray-50">
                   <TableRow className="hover:bg-transparent border-b-2">
-                    <TableHead className="w-[200px] font-black text-xs uppercase text-gray-500 py-6 px-10 text-center tracking-widest">Fecha</TableHead>
+                    <TableHead className="w-[50px] py-6 px-4 text-center">
+                      <Checkbox 
+                        checked={registrosFiltrados.length > 0 && selectedIds.size === registrosFiltrados.length}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Seleccionar todo"
+                      />
+                    </TableHead>
+                    <TableHead className="w-[200px] font-black text-xs uppercase text-gray-500 py-6 px-4 text-center tracking-widest">Fecha</TableHead>
                     <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Gasto</TableHead>
                     <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
                     <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">Transporte</TableHead>
@@ -283,14 +325,21 @@ export default function DashboardPage() {
                 <TableBody>
                   {registrosFiltrados.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-24 text-muted-foreground italic font-bold text-lg">
+                      <TableCell colSpan={7} className="text-center py-24 text-muted-foreground italic font-bold text-lg">
                         No se encontraron registros para el rango seleccionado.
                       </TableCell>
                     </TableRow>
                   ) : (
                     registrosFiltrados.map((item) => (
                       <TableRow key={item.id} className="hover:bg-primary/5 transition-all border-b border-gray-100 group">
-                        <TableCell className="py-6 px-10 text-center">
+                        <TableCell className="py-6 px-4 text-center">
+                          <Checkbox 
+                            checked={selectedIds.has(item.id)}
+                            onCheckedChange={(checked) => handleSelectRow(item.id, !!checked)}
+                            aria-label={`Seleccionar registro ${item.numeroFactura}`}
+                          />
+                        </TableCell>
+                        <TableCell className="py-6 px-4 text-center">
                           <div className="flex flex-col">
                             <span className="font-black text-sm text-gray-900 group-hover:text-primary transition-colors">
                               {format(new Date(item.fechaRegistro), "dd/MM/yyyy", { locale: es })}
