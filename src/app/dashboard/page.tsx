@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
@@ -15,6 +15,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import jspdf from 'jspdf';
@@ -38,6 +45,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<string>("TODOS");
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
@@ -74,17 +82,28 @@ export default function DashboardPage() {
 
   const registrosFiltrados = useMemo(() => {
     return registros.filter(reg => {
-      if (!dateRange?.from) return true;
-      const fechaReg = new Date(reg.fechaRegistro);
-      const start = startOfDay(dateRange.from);
-      const end = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
-      return isWithinInterval(fechaReg, { start, end });
+      // Filtrado por fecha
+      let matchesDate = true;
+      if (dateRange?.from) {
+        const fechaReg = new Date(reg.fechaRegistro);
+        const start = startOfDay(dateRange.from);
+        const end = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+        matchesDate = isWithinInterval(fechaReg, { start, end });
+      }
+
+      // Filtrado por estado
+      let matchesStatus = true;
+      if (statusFilter !== "TODOS") {
+        matchesStatus = reg.estado.toUpperCase() === statusFilter;
+      }
+
+      return matchesDate && matchesStatus;
     });
-  }, [registros, dateRange]);
+  }, [registros, dateRange, statusFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateRange]);
+  }, [dateRange, statusFilter]);
 
   const pagedRegistros = useMemo(() => {
     let start = 0;
@@ -149,6 +168,9 @@ export default function DashboardPage() {
     doc.setTextColor(100);
     doc.text(`Periodo: ${dateStr}`, 14, 30);
     doc.text(`Items seleccionados: ${itemsParaExportar.length}`, 14, 36);
+    if (statusFilter !== "TODOS") {
+      doc.text(`Estado: ${statusFilter}`, 14, 42);
+    }
 
     const tableData = itemsParaExportar.map(reg => [
       format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
@@ -160,7 +182,7 @@ export default function DashboardPage() {
     ]);
 
     autoTable(doc, {
-      startY: 42,
+      startY: statusFilter !== "TODOS" ? 48 : 42,
       head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado']],
       body: tableData,
       foot: [[
@@ -191,6 +213,7 @@ export default function DashboardPage() {
 
   const handleClearFilter = () => {
     setDateRange(undefined);
+    setStatusFilter("TODOS");
   };
 
   return (
@@ -226,7 +249,9 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black tracking-tighter text-orange-600">0</div>
+            <div className="text-3xl font-black tracking-tighter text-orange-600">
+               {registros.filter(r => r.estado.toUpperCase() === 'PENDIENTE').length}
+            </div>
             <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Por liquidar</p>
           </CardContent>
         </Card>
@@ -240,7 +265,9 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black tracking-tighter text-green-700">{registrosFiltrados.length}</div>
+            <div className="text-3xl font-black tracking-tighter text-green-700">
+              {registros.filter(r => r.estado.toUpperCase() === 'PROCESADO').length}
+            </div>
             <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas procesadas</p>
           </CardContent>
         </Card>
@@ -261,6 +288,24 @@ export default function DashboardPage() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-4">
+              {/* Filtro por Estado */}
+              <div className="flex items-center gap-2">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px] h-12 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight text-gray-700 bg-white">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-primary/60" />
+                      <SelectValue placeholder="ESTADO" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-2xl">
+                    <SelectItem value="TODOS" className="font-bold">TODOS LOS ESTADOS</SelectItem>
+                    <SelectItem value="PROCESADO" className="font-bold text-green-600 uppercase">PROCESADO</SelectItem>
+                    <SelectItem value="PENDIENTE" className="font-bold text-orange-600 uppercase">PENDIENTE</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filtro por Fecha */}
               <Popover>
                 <PopoverTrigger asChild>
                   <Button 
@@ -348,7 +393,7 @@ export default function DashboardPage() {
                     {pagedRegistros.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-24 text-muted-foreground italic font-bold text-lg">
-                          No se encontraron registros para el rango seleccionado.
+                          No se encontraron registros para el rango o estado seleccionado.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -389,7 +434,10 @@ export default function DashboardPage() {
                             </span>
                           </TableCell>
                           <TableCell className="text-center px-10">
-                            <Badge className="bg-green-600 hover:bg-green-700 px-4 py-1 font-black uppercase text-[9px] tracking-widest shadow-md border-none">
+                            <Badge className={cn(
+                              "px-4 py-1 font-black uppercase text-[9px] tracking-widest shadow-md border-none",
+                              item.estado.toUpperCase() === 'PROCESADO' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600"
+                            )}>
                               {item.estado}
                             </Badge>
                           </TableCell>
