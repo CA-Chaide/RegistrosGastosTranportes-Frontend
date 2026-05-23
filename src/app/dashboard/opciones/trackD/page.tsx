@@ -33,7 +33,6 @@ export default function ConsultaRegistrosPage() {
   const fetchRegistros = async () => {
     setLoading(true);
     try {
-      // Aquí podrías filtrar por el código del proveedor logueado si fuera necesario
       const resp = await serviciosService.getRegistrosFacturas();
       setRegistros(resp.data || []);
     } catch (error) {
@@ -41,6 +40,19 @@ export default function ConsultaRegistrosPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatInvoice = (val: string) => {
+    if (!val) return 'N/A';
+    if (val.includes('-')) return val;
+    const clean = val.replace(/\D/g, '');
+    if (clean.length >= 13) {
+      return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
+    }
+    if (clean.length > 3) {
+      return `${clean.slice(0, 3)}-${clean.slice(3)}`;
+    }
+    return clean;
   };
 
   const registrosFiltrados = registros.filter(r => 
@@ -157,7 +169,9 @@ export default function ConsultaRegistrosPage() {
                             <span className="font-semibold">{item.codigoProveedor}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono font-medium">{item.numeroFactura}</TableCell>
+                        <TableCell className="font-mono font-medium tracking-tighter">
+                          {formatInvoice(item.numeroFactura)}
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="text-sm font-medium">

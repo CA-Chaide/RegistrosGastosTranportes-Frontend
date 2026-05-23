@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -60,6 +59,19 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
+  const formatInvoice = (val: string) => {
+    if (!val) return 'N/A';
+    if (val.includes('-')) return val;
+    const clean = val.replace(/\D/g, '');
+    if (clean.length >= 13) {
+      return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
+    }
+    if (clean.length > 3) {
+      return `${clean.slice(0, 3)}-${clean.slice(3)}`;
+    }
+    return clean;
+  };
+
   const registrosFiltrados = useMemo(() => {
     return registros.filter(reg => {
       if (!dateRange?.from) return true;
@@ -70,12 +82,10 @@ export default function DashboardPage() {
     });
   }, [registros, dateRange]);
 
-  // Reset page when filtering
   useEffect(() => {
     setCurrentPage(1);
   }, [dateRange]);
 
-  // Pagination Logic
   const pagedRegistros = useMemo(() => {
     let start = 0;
     let end = 50;
@@ -144,7 +154,7 @@ export default function DashboardPage() {
     const tableData = itemsParaExportar.map(reg => [
       format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
       reg.numeroGasto || 'N/A',
-      reg.numeroFactura,
+      formatInvoice(reg.numeroFactura),
       reg.transporte || 'N/A',
       `$${reg.valorTotal.toFixed(2)}`,
       reg.estado
@@ -380,7 +390,7 @@ export default function DashboardPage() {
                             {item.numeroGasto || 'N/A'}
                           </TableCell>
                           <TableCell className="font-black text-gray-900 tabular-nums text-center tracking-tight">
-                            {item.numeroFactura}
+                            {formatInvoice(item.numeroFactura)}
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-2">
@@ -405,7 +415,6 @@ export default function DashboardPage() {
                 </Table>
               </div>
 
-              {/* Pagination Controls */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-10 py-6 bg-gray-50 border-t border-gray-100">
                   <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
