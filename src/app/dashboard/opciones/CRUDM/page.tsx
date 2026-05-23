@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef } from 'react';
@@ -124,7 +123,6 @@ export default function RegistroFacturasPage() {
 
         const itemValor = parseFloat(item.valorGasto || item.ValorGasto || item.VALOR || item.valor || item.Monto || 0);
         
-        // Mapeo exhaustivo para encontrar Gasto y Placa según posibles respuestas del servidor
         const gasto = item.NumeroGasto || item.numeroGasto || item.Gasto || item.GASTO || item.num_gasto || item.NUMERO_GASTO || item.secuencia || 'N/A';
         const placa = item.Placa || item.placa || item.PLACA || item.Vehiculo || item.vehiculo || item.VEHICULO || item.PlacaVehiculo || item.placa_vehiculo || item.Matricula || 'N/A';
 
@@ -144,7 +142,11 @@ export default function RegistroFacturasPage() {
         
         toast({ title: "Agregado", description: `Transporte ${valorABuscar} vinculado.` });
       } else {
-        toast({ title: "No encontrado", description: `El número ${valorABuscar} no existe para este proveedor.`, variant: "destructive" });
+        toast({ 
+          title: "No encontrado", 
+          description: "El número que se ingresó ya se encuentra ingresado en otra factura.", 
+          variant: "destructive" 
+        });
       }
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Error en consulta.", variant: "destructive" });
