@@ -203,18 +203,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <Card className="border-l-8 border-l-green-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Registros Exitosos</CardTitle>
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black tracking-tighter text-green-700">{registrosFiltrados.length}</div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas procesadas</p>
-          </CardContent>
-        </Card>
+        {/* Card 1: Transportes (Blue) */}
         <Card className="border-l-8 border-l-blue-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Transportes</CardTitle>
@@ -227,6 +216,8 @@ export default function DashboardPage() {
             <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Unidades vinculadas</p>
           </CardContent>
         </Card>
+
+        {/* Card 2: Pendientes (Orange) */}
         <Card className="border-l-8 border-l-orange-500 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Pendientes</CardTitle>
@@ -237,6 +228,20 @@ export default function DashboardPage() {
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-orange-600">0</div>
             <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Por liquidar</p>
+          </CardContent>
+        </Card>
+
+        {/* Card 3: Registros Exitosos (Green) */}
+        <Card className="border-l-8 border-l-green-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Registros Exitosos</CardTitle>
+            <div className="p-2 bg-green-100 rounded-lg">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-black tracking-tighter text-green-700">{registrosFiltrados.length}</div>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas procesadas</p>
           </CardContent>
         </Card>
       </div>
