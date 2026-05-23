@@ -79,50 +79,6 @@ export default function ConsultaRegistrosPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-primary/10 rounded-xl">
-                <FileText className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Registros</p>
-                <h3 className="text-2xl font-bold">{registros.length}</h3>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-100 rounded-xl">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Monto Acumulado</p>
-                <h3 className="text-2xl font-bold text-green-700">
-                  ${registros.reduce((acc, r) => acc + r.valorTotal, 0).toFixed(2)}
-                </h3>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-100 rounded-xl">
-                <Calendar className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Última Actualización</p>
-                <h3 className="text-lg font-bold">Hoy, {format(new Date(), 'dd MMM', { locale: es })}</h3>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card className="shadow-xl border-t-4 border-t-primary overflow-hidden">
         <CardHeader className="bg-muted/30">
           <CardTitle className="text-xl">Listado Maestro de Facturas</CardTitle>
