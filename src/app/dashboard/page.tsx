@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DateRange } from "react-day-picker";
 
@@ -36,7 +36,6 @@ export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Inicializamos con el día de hoy como rango inicial
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
     to: new Date(),
@@ -92,7 +91,6 @@ export default function DashboardPage() {
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Reporte de registros: ${dateStr}`, 14, 30);
-    // Se elimina la línea de texto del total superior como se solicitó
 
     const tableData = registrosFiltrados.map(reg => [
       format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
@@ -107,7 +105,6 @@ export default function DashboardPage() {
       startY: 40,
       head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado']],
       body: tableData,
-      // Se añade la sumatoria en el pie de página de la tabla
       foot: [[
         { content: 'TOTAL ACUMULADO DEL PERIODO', colSpan: 4, styles: { halign: 'right' } },
         { content: `$${totalMonto.toFixed(2)}`, styles: { halign: 'right' } },
@@ -140,47 +137,6 @@ export default function DashboardPage() {
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-primary uppercase">Panel de Control Operativo</h2>
           <p className="text-muted-foreground font-medium text-lg">Resumen detallado de facturación y transportes registrados.</p>
-        </div>
-        <div className="flex items-center">
-           <Popover>
-              <PopoverTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className={cn(
-                    "bg-white h-14 px-6 rounded-2xl shadow-md border-2 border-primary/10 flex items-center gap-4 hover:bg-gray-50 transition-all min-w-[320px] group",
-                    !dateRange && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="h-6 w-6 text-primary group-hover:scale-110 transition-transform" />
-                  <span className="text-base font-black uppercase tracking-tight text-gray-700">
-                    {dateRange?.from ? (
-                      dateRange.to ? (
-                        <>
-                          {format(dateRange.from, "d MMM", { locale: es }).toUpperCase()} - {format(dateRange.to, "d MMM, yyyy", { locale: es }).toUpperCase()}
-                        </>
-                      ) : (
-                        format(dateRange.from, "d 'DE' MMMM, yyyy", { locale: es }).toUpperCase()
-                      )
-                    ) : (
-                      "SELECCIONAR PERIODO"
-                    )}
-                  </span>
-                  <ChevronDown className="h-5 w-5 text-muted-foreground ml-auto group-data-[state=open]:rotate-180 transition-transform" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-3xl overflow-hidden" align="end">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={dateRange?.from}
-                  selected={dateRange}
-                  onSelect={setDateRange}
-                  numberOfMonths={2}
-                  locale={es}
-                  className="p-6 bg-white"
-                />
-              </PopoverContent>
-           </Popover>
         </div>
       </div>
 
@@ -237,10 +193,10 @@ export default function DashboardPage() {
 
       <Card className="shadow-2xl border-none rounded-3xl overflow-hidden">
         <CardHeader className="bg-white border-b-2 border-gray-100 px-10 py-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div>
               <CardTitle className="text-3xl font-black text-primary uppercase tracking-tighter">Detalles de Facturación</CardTitle>
-              <CardDescription className="font-bold text-base mt-1 text-gray-500">
+              <CardDescription className="font-semibold text-base mt-1 text-gray-500">
                 {dateRange?.from 
                   ? dateRange.to 
                     ? `Registros desde ${format(dateRange.from, "d 'de' MMMM", { locale: es })} hasta ${format(dateRange.to, "d 'de' MMMM", { locale: es })}`
@@ -249,7 +205,45 @@ export default function DashboardPage() {
                 }
               </CardDescription>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className={cn(
+                      "bg-white h-12 px-5 rounded-xl shadow-sm border-2 border-primary/20 flex items-center gap-3 hover:bg-gray-50 transition-all group min-w-[240px]",
+                      !dateRange && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="h-5 w-5 text-primary" />
+                    <span className="text-sm font-black uppercase tracking-tight text-gray-700">
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          <>{format(dateRange.from, "d MMM", { locale: es }).toUpperCase()} - {format(dateRange.to, "d MMM, yyyy", { locale: es }).toUpperCase()}</>
+                        ) : (
+                          format(dateRange.from, "d 'DE' MMMM, yyyy", { locale: es }).toUpperCase()
+                        )
+                      ) : (
+                        "SELECCIONAR PERIODO"
+                      )}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto group-data-[state=open]:rotate-180 transition-transform" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-3xl overflow-hidden" align="end">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                    locale={es}
+                    className="p-6 bg-white"
+                  />
+                </PopoverContent>
+              </Popover>
+
               <Button 
                 variant="outline" 
                 size="lg" 
@@ -260,7 +254,8 @@ export default function DashboardPage() {
                 <FileDown className="mr-3 h-5 w-5" />
                 EXPORTAR PDF
               </Button>
-              <Badge className="px-5 py-2 font-black text-xs uppercase tracking-widest bg-primary/10 text-primary border-none">
+              
+              <Badge className="px-5 py-2 h-12 flex items-center font-black text-xs uppercase tracking-widest bg-primary/10 text-primary border-none rounded-full">
                 FILTRADO ACTIVO
               </Badge>
             </div>
