@@ -267,7 +267,6 @@ export default function DashboardLayout({
     const [menuError, setMenuError] = useState<string | null>(null);
     const { toast } = useToast();
     const router = useRouter();
-    const { isCollapsed } = useSidebar();
 
     useEffect(() => {
         const loadMenus = async () => {
@@ -332,11 +331,6 @@ export default function DashboardLayout({
                     </SidebarHeader>
                     <SidebarContent>
                         <SidebarMenu>
-                            {!menuLoading && !menuError && menuItems.length > 0 && !isCollapsed && (
-                                <div className="px-4 py-2 mb-2">
-                                    <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Navegación</p>
-                                </div>
-                            )}
                             {menuLoading && (
                                 <div className="text-xs text-white/70 px-2 py-1">Cargando menú...</div>
                             )}
