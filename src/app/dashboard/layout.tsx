@@ -15,8 +15,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { menuService } from '@/services/menu.service';
 import { useToast } from '@/hooks/use-toast';
 import { environment } from '@/environments/environments.prod';
-// (LogoutButton preserved in repo but not used here; we implement custom panel UI)
-
 
 // Tipo local ampliado para soportar children anidados (el backend envía árbol).
 type MenuNode = {
@@ -117,16 +115,16 @@ const RecursiveMenu = ({ items, level = 0 }: { items: any[], level?: number }) =
     return (
         <div className="w-full" style={{ paddingLeft: level > 0 && !isCollapsed ? '1rem' : '0' }}>
             {items.map((item, index) => (
-                <Collapsible key={index} className={isCollapsed ? 'w-full flex justify-center' : 'w-full'} defaultOpen>
+                <div key={index} className="w-full">
                     {item.children ? (
-                        <>
+                        <Collapsible className={isCollapsed ? 'w-full flex justify-center' : 'w-full'} defaultOpen>
                             <CollapsibleTrigger className={isCollapsed ? 'w-10 h-10 flex items-center justify-center rounded-md hover:bg-primary-foreground/10' : 'w-full'} title={isCollapsed ? item.label : undefined}>
-                                <div className={isCollapsed ? 'flex items-center justify-center' : 'flex items-center justify-between w-full p-2 rounded-md hover:bg-primary/80'}>
+                                <div className={isCollapsed ? 'flex items-center justify-center' : 'flex items-center justify-between w-full p-2 rounded-md hover:bg-primary-foreground/10 transition-colors'}>
                                     <div className={isCollapsed ? 'flex items-center' : 'flex items-center gap-2'}>
                                         <item.icon className="h-5 w-5" />
                                         {!isCollapsed && <span>{item.label}</span>}
                                     </div>
-                                    {!isCollapsed && <ChevronsUpDown className="h-4 w-4" />}
+                                    {!isCollapsed && <ChevronsUpDown className="h-4 w-4 opacity-50" />}
                                 </div>
                             </CollapsibleTrigger>
                             {!isCollapsed && (
@@ -134,12 +132,12 @@ const RecursiveMenu = ({ items, level = 0 }: { items: any[], level?: number }) =
                                     <RecursiveMenu items={item.children} level={level + 1} />
                                 </CollapsibleContent>
                             )}
-                        </>
+                        </Collapsible>
                     ) : (
                         <SidebarMenuItem>
                             <SidebarMenuButton
-                                href={item.path ? `${environment.basePath}${item.path}` : '#'}
-                                active={item.path ? pathname?.startsWith(`${environment.basePath}${item.path}`) : false}
+                                href={item.path || '#'}
+                                active={item.path ? pathname === item.path || pathname?.startsWith(item.path + '/') : false}
                                 className={isCollapsed ? 'h-10 w-10 justify-center' : 'justify-start pl-4 h-9'}
                                 title={isCollapsed ? item.label : undefined}
                             >
@@ -148,7 +146,7 @@ const RecursiveMenu = ({ items, level = 0 }: { items: any[], level?: number }) =
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     )}
-                </Collapsible>
+                </div>
             ))}
         </div>
     );
@@ -190,7 +188,6 @@ function UserPanel() {
                     } catch { /* ignore decode errors */ }
                 }
             }
-            // Fallback user object stored separately
             if (!payload) {
                 const userStr = localStorage.getItem('user');
                 if (userStr) {
@@ -199,7 +196,6 @@ function UserPanel() {
             }
             if (payload) setUserInfo(payload);
 
-            // Leer todos los perfiles autorizados
             const perfilesAutorizadosStr = localStorage.getItem('perfilesAutorizados');
             if (perfilesAutorizadosStr) {
                 try {
@@ -215,14 +211,13 @@ function UserPanel() {
         .map(p => p?.tipo_usuario?.nombre_tipo_usuario)
         .filter(Boolean)
         .join(', ');
-    const avatarText = (displayName || '?').trim().charAt(0).toUpperCase();
 
     const handleLogout = () => {
         try {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             localStorage.removeItem('perfilesAutorizados');
-            localStorage.clear(); // Eliminar todas las variables de sesión
+            localStorage.clear();
         } catch (error) {
             console.error('Error al limpiar localStorage:', error);
         }
@@ -251,7 +246,6 @@ function UserPanel() {
                     {tiposUsuarioNombres && (
                         <p className="text-xs text-white/80" title={tiposUsuarioNombres}>{tiposUsuarioNombres}</p>
                     )}
-                    {userInfo?.email && <p className="text-[11px] text-white/60" title={userInfo.email}>{userInfo.email}</p>}
                 </div>
                 <button
                     aria-label="Cerrar sesión"
@@ -264,7 +258,6 @@ function UserPanel() {
         </div>
     );
 }
-
 
 export default function DashboardLayout({
     children,
@@ -300,15 +293,13 @@ export default function DashboardLayout({
                         description: "No se encontraron códigos válidos en tus perfiles autorizados",
                         variant: "destructive",
                     });
-                    router.push(`${environment.basePath}/`);
+                    router.push('/');
                     return;
                 }
-                // Llamadas en paralelo; ignorar individuales fallidas pero registrar si todas fallan
                 const results: MenuNode[] = [];
                 await Promise.all(codigoList.map(async codigo => {
                     try {
                         const resp = await menuService.getMenuByCodigoTipoUsuario(String(codigo));
-                        // Posibles formas: { data: {...} } ó directamente {...}
                         const candidate: any = (resp as any)?.data && (resp as any).data.codigo_menu ? (resp as any).data : resp;
                         if (candidate && typeof candidate === 'object' && candidate.codigo_menu) {
                             results.push(candidate as MenuNode);
@@ -316,38 +307,16 @@ export default function DashboardLayout({
                     } catch { /* ignorar error individual */ }
                 }));
                 if (!results.length) {
-                    toast({
-                        title: "Sin menú disponible",
-                        description: "No se pudo cargar el menú para tus perfiles. Contacta al administrador del sistema",
-                        variant: "destructive",
-                    });
-                    router.push(`${environment.basePath}/`);
-                    return;
+                    setMenuError("No se pudo cargar el menú");
                 } else {
                     const merged = mergeMenuTrees(results);
                     const active = filterActive(merged);
                     const menuItemsResult = toRecursiveItems(active);
-                    
-                    // Verificar que después del filtrado aún tengamos elementos de menú
-                    if (!menuItemsResult.length) {
-                        toast({
-                            title: "Sin opciones de menú",
-                            description: "No tienes opciones de menú activas disponibles",
-                            variant: "destructive",
-                        });
-                        router.push(`${environment.basePath}/`);
-                        return;
-                    }
-                    
                     setMenuItems(menuItemsResult);
                 }
             } catch (err: any) {
-                toast({
-                    title: "Error cargando menú",
-                    description: err?.message || 'Error inesperado al cargar el menú del sistema',
-                    variant: "destructive",
-                });
-                router.push(`${environment.basePath}/`);
+                console.error("Error al cargar menús", err);
+                setMenuError("Error al conectar con el servicio de menú");
             } finally {
                 setMenuLoading(false);
             }

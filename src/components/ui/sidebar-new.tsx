@@ -1,11 +1,10 @@
-
 'use client';
 
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft } from 'lucide-react';
-
+import Link from 'next/link';
 
 const SidebarContext = React.createContext<{
     isCollapsed: boolean;
@@ -120,15 +119,32 @@ export const SidebarMenuButton = React.forwardRef<
     href: string;
     active?: boolean;
   }
->(({ className, children, active = false, ...props }, ref) => {
+>(({ className, children, href, active = false, ...props }, ref) => {
     const { isCollapsed } = useSidebar();
     const childrenArray = React.Children.toArray(children);
     const icon = childrenArray[0];
     const label = childrenArray[1];
 
+    if (href === '#' || !href) {
+        return (
+            <button
+              type="button"
+              className={cn(
+                'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors text-left',
+                'text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground',
+                isCollapsed && 'justify-center',
+                className
+              )}
+            >
+              {icon}
+              {!isCollapsed && label}
+            </button>
+        );
+    }
+
   return (
-    <a
-      ref={ref}
+    <Link
+      href={href}
       className={cn(
         'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
         active
@@ -137,11 +153,11 @@ export const SidebarMenuButton = React.forwardRef<
         isCollapsed && 'justify-center',
         className
       )}
-      {...props}
+      {...(props as any)}
     >
       {icon}
       {!isCollapsed && label}
-    </a>
+    </Link>
   );
 });
 SidebarMenuButton.displayName = 'SidebarMenuButton';
