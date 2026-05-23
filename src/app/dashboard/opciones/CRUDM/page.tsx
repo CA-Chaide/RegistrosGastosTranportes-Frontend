@@ -190,6 +190,7 @@ export default function RegistroFacturasPage() {
   };
 
   if (registroCompletado) {
+    const [prefix, num] = registroCompletado.includes('-') ? registroCompletado.split('-') : ['REG', registroCompletado];
     return (
       <div className="p-6 max-w-2xl mx-auto">
         <Card className="border-green-200 bg-green-50 shadow-2xl animate-in zoom-in-95 duration-300">
@@ -200,7 +201,10 @@ export default function RegistroFacturasPage() {
             <CardTitle className="text-4xl font-black text-green-900 tracking-tight">¡REGISTRO EXITOSO!</CardTitle>
             <div className="mt-8 p-10 bg-white rounded-3xl border-4 border-dashed border-green-200 w-full shadow-lg">
               <p className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Número de Registro Único</p>
-              <p className="text-6xl font-black text-primary select-all tabular-nums tracking-tighter">{registroCompletado}</p>
+              <div className="flex flex-col items-center">
+                <p className="text-5xl font-black text-primary leading-none tracking-tighter uppercase">{prefix}-</p>
+                <p className="text-7xl font-black text-primary leading-none tracking-tighter mt-1">{num}</p>
+              </div>
             </div>
             <Button onClick={resetForm} className="mt-12 px-10 py-8 text-xl font-bold rounded-2xl shadow-xl">
               Realizar nuevo registro
