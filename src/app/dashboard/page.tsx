@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
@@ -38,6 +38,7 @@ export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
@@ -69,15 +70,28 @@ export default function DashboardPage() {
     });
   }, [registros, dateRange]);
 
+  // Reset page when filtering
   useEffect(() => {
-    const visibleIds = new Set(registrosFiltrados.map(r => r.id));
-    setSelectedIds(prev => {
-      const next = new Set<string>();
-      prev.forEach(id => {
-        if (visibleIds.has(id)) next.add(id);
-      });
-      return next;
-    });
+    setCurrentPage(1);
+  }, [dateRange]);
+
+  // Pagination Logic
+  const pagedRegistros = useMemo(() => {
+    let start = 0;
+    let end = 50;
+    
+    if (currentPage > 1) {
+      start = 50 + (currentPage - 2) * 100;
+      end = start + 100;
+    }
+    
+    return registrosFiltrados.slice(start, end);
+  }, [registrosFiltrados, currentPage]);
+
+  const totalPages = useMemo(() => {
+    const total = registrosFiltrados.length;
+    if (total <= 50) return 1;
+    return 1 + Math.ceil((total - 50) / 100);
   }, [registrosFiltrados]);
 
   const handleSelectAll = (checked: boolean) => {
@@ -315,80 +329,116 @@ export default function DashboardPage() {
               <p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Sincronizando datos operativos...</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-gray-50">
-                  <TableRow className="hover:bg-transparent border-b-2">
-                    <TableHead className="w-[50px] py-6 px-4 text-center">
-                      <Checkbox 
-                        checked={registrosFiltrados.length > 0 && selectedIds.size === registrosFiltrados.length}
-                        onCheckedChange={handleSelectAll}
-                        aria-label="Seleccionar todo"
-                      />
-                    </TableHead>
-                    <TableHead className="w-[200px] font-black text-xs uppercase text-gray-500 py-6 px-4 text-center tracking-widest">Fecha</TableHead>
-                    <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Gasto</TableHead>
-                    <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
-                    <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">Transporte</TableHead>
-                    <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto</TableHead>
-                    <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {registrosFiltrados.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-24 text-muted-foreground italic font-bold text-lg">
-                        No se encontraron registros para el rango seleccionado.
-                      </TableCell>
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-gray-50">
+                    <TableRow className="hover:bg-transparent border-b-2">
+                      <TableHead className="w-[50px] py-6 px-4 text-center">
+                        <Checkbox 
+                          checked={registrosFiltrados.length > 0 && selectedIds.size === registrosFiltrados.length}
+                          onCheckedChange={handleSelectAll}
+                          aria-label="Seleccionar todo"
+                        />
+                      </TableHead>
+                      <TableHead className="w-[200px] font-black text-xs uppercase text-gray-500 py-6 px-4 text-center tracking-widest">Fecha</TableHead>
+                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Gasto</TableHead>
+                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
+                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">Transporte</TableHead>
+                      <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto</TableHead>
+                      <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
                     </TableRow>
-                  ) : (
-                    registrosFiltrados.map((item) => (
-                      <TableRow key={item.id} className="hover:bg-primary/5 transition-all border-b border-gray-100 group">
-                        <TableCell className="py-6 px-4 text-center">
-                          <Checkbox 
-                            checked={selectedIds.has(item.id)}
-                            onCheckedChange={(checked) => handleSelectRow(item.id, !!checked)}
-                            aria-label={`Seleccionar registro ${item.numeroFactura}`}
-                          />
-                        </TableCell>
-                        <TableCell className="py-6 px-4 text-center">
-                          <div className="flex flex-col">
-                            <span className="font-black text-sm text-gray-900 group-hover:text-primary transition-colors">
-                              {format(new Date(item.fechaRegistro), "dd/MM/yyyy", { locale: es })}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
-                              {format(new Date(item.fechaRegistro), "HH:mm 'HRS'")}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-bold text-gray-500 text-center text-sm">
-                          {item.numeroGasto || 'N/A'}
-                        </TableCell>
-                        <TableCell className="font-black text-gray-900 tabular-nums text-center tracking-tight">
-                          {item.numeroFactura}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                            <span className="font-black text-primary tracking-tight">{item.transporte || 'N/A'}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right px-10">
-                          <span className="text-xl font-black text-primary tracking-tighter">
-                            ${item.valorTotal.toFixed(2)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center px-10">
-                          <Badge className="bg-green-600 hover:bg-green-700 px-4 py-1 font-black uppercase text-[9px] tracking-widest shadow-md border-none">
-                            {item.estado}
-                          </Badge>
+                  </TableHeader>
+                  <TableBody>
+                    {pagedRegistros.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-24 text-muted-foreground italic font-bold text-lg">
+                          No se encontraron registros para el rango seleccionado.
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    ) : (
+                      pagedRegistros.map((item) => (
+                        <TableRow key={item.id} className="hover:bg-primary/5 transition-all border-b border-gray-100 group">
+                          <TableCell className="py-6 px-4 text-center">
+                            <Checkbox 
+                              checked={selectedIds.has(item.id)}
+                              onCheckedChange={(checked) => handleSelectRow(item.id, !!checked)}
+                              aria-label={`Seleccionar registro ${item.numeroFactura}`}
+                            />
+                          </TableCell>
+                          <TableCell className="py-6 px-4 text-center">
+                            <div className="flex flex-col">
+                              <span className="font-black text-sm text-gray-900 group-hover:text-primary transition-colors">
+                                {format(new Date(item.fechaRegistro), "dd/MM/yyyy", { locale: es })}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
+                                {format(new Date(item.fechaRegistro), "HH:mm 'HRS'")}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-bold text-gray-500 text-center text-sm">
+                            {item.numeroGasto || 'N/A'}
+                          </TableCell>
+                          <TableCell className="font-black text-gray-900 tabular-nums text-center tracking-tight">
+                            {item.numeroFactura}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                              <span className="font-black text-primary tracking-tight">{item.transporte || 'N/A'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right px-10">
+                            <span className="text-xl font-black text-primary tracking-tighter">
+                              ${item.valorTotal.toFixed(2)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center px-10">
+                            <Badge className="bg-green-600 hover:bg-green-700 px-4 py-1 font-black uppercase text-[9px] tracking-widest shadow-md border-none">
+                              {item.estado}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-10 py-6 bg-gray-50 border-t border-gray-100">
+                  <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+                    Página {currentPage} de {totalPages} 
+                    <span className="ml-4 opacity-60">
+                      (Mostrando {currentPage === 1 ? '50' : '100'} de {registrosFiltrados.length} registros)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      className="h-10 px-4 font-black border-2"
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-2" />
+                      ANTERIOR
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      className="h-10 px-4 font-black border-2"
+                    >
+                      SIGUIENTE
+                      <ChevronRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
