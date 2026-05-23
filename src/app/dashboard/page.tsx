@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import jsPDF from 'jspdf';
+import jspdf from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DateRange } from "react-day-picker";
 
@@ -128,7 +129,7 @@ export default function DashboardPage() {
   const handleDownloadPDF = () => {
     if (itemsParaExportar.length === 0) return;
 
-    const doc = new jsPDF();
+    const doc = new jspdf();
     let dateStr = "";
     
     if (dateRange?.from) {

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppShell, AppShellContent, AppShellHeader } from '@/components/layout/app-shell';
@@ -9,7 +10,7 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { ChevronsUpDown, BookUser, Shield, Users, Settings, Building, MenuSquare, UserCog, UserPlus, Minus, LogOut, CircleUser, AppWindow } from 'lucide-react';
+import { ChevronsUpDown, BookUser, Shield, Users, Settings, Building, MenuSquare, Menu, UserCog, UserPlus, Minus, LogOut, CircleUser, AppWindow } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { menuService } from '@/services/menu.service';
@@ -36,6 +37,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
     Settings,
     Building,
     MenuSquare,
+    Menu,
     UserCog,
     UserPlus,
     CircleUser,
@@ -92,10 +94,6 @@ function toRecursiveItems(nodes: MenuNode[]): any[] {
     return nodes.map(n => {
         const IconComp = iconMap[n.icono] || Shield;
         const hasChildren = !!(n.children && n.children.length);
-        // Reglas:
-        // '.' => raíz (no navegable)
-        // '|' => agrupador (no navegable)
-        // otro valor => ruta navegable
         const isRoot = n.path === '.';
         const isBranch = n.path === '|';
         const isNavigable = !(isRoot || isBranch) && !!n.path;
@@ -269,6 +267,7 @@ export default function DashboardLayout({
     const [menuError, setMenuError] = useState<string | null>(null);
     const { toast } = useToast();
     const router = useRouter();
+    const { isCollapsed } = useSidebar();
 
     useEffect(() => {
         const loadMenus = async () => {
@@ -333,6 +332,11 @@ export default function DashboardLayout({
                     </SidebarHeader>
                     <SidebarContent>
                         <SidebarMenu>
+                            {!menuLoading && !menuError && menuItems.length > 0 && !isCollapsed && (
+                                <div className="px-4 py-2 mb-2">
+                                    <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Navegación</p>
+                                </div>
+                            )}
                             {menuLoading && (
                                 <div className="text-xs text-white/70 px-2 py-1">Cargando menú...</div>
                             )}
