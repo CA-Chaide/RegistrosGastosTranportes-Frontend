@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -6,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown, FileDown } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, DollarSign, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { jsPDF } from 'jspdf';
+import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DateRange } from "react-day-picker";
 
@@ -68,7 +69,6 @@ export default function DashboardPage() {
     });
   }, [registros, dateRange]);
 
-  // Limpiar seleccionados si cambian los filtros y algún seleccionado ya no es visible
   useEffect(() => {
     const visibleIds = new Set(registrosFiltrados.map(r => r.id));
     setSelectedIds(prev => {
@@ -166,6 +166,10 @@ export default function DashboardPage() {
     doc.save(`Reporte_Facturacion_Seleccionada_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
   };
 
+  const handleClearFilter = () => {
+    setDateRange(undefined);
+  };
+
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-gray-50/50">
       <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
@@ -236,7 +240,7 @@ export default function DashboardPage() {
                   ? dateRange.to 
                     ? `Registros desde ${format(dateRange.from, "d 'de' MMMM", { locale: es })} hasta ${format(dateRange.to, "d 'de' MMMM", { locale: es })}`
                     : `Registros del ${format(dateRange.from, "d 'de' MMMM", { locale: es })}`
-                  : "Seleccione un periodo para ver el detalle"
+                  : "Mostrando todos los registros históricos"
                 }
               </CardDescription>
             </div>
@@ -276,6 +280,11 @@ export default function DashboardPage() {
                     locale={es}
                     className="p-6 bg-white"
                   />
+                  <div className="p-4 bg-gray-50 border-t flex justify-end">
+                     <Button variant="ghost" size="sm" onClick={handleClearFilter} className="text-xs font-bold text-primary">
+                       <RotateCcw className="mr-2 h-3 w-3" /> RESTABLECER
+                     </Button>
+                  </div>
                 </PopoverContent>
               </Popover>
 
@@ -290,8 +299,11 @@ export default function DashboardPage() {
                 EXPORTAR PDF {selectedIds.size > 0 && `(${selectedIds.size})`}
               </Button>
               
-              <Badge className="px-5 py-2 h-12 flex items-center font-black text-xs uppercase tracking-widest bg-primary/10 text-primary border-none rounded-full">
-                FILTRADO ACTIVO
+              <Badge className={cn(
+                "px-5 py-2 h-12 flex items-center font-black text-xs uppercase tracking-widest border-none rounded-full transition-colors",
+                dateRange?.from ? "bg-primary/10 text-primary" : "bg-gray-100 text-gray-400"
+              )}>
+                {dateRange?.from ? "FILTRADO POR FECHA" : "MOSTRANDO TODO"}
               </Badge>
             </div>
           </div>
