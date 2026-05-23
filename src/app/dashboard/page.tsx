@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -315,13 +314,6 @@ export default function DashboardPage() {
                 <FileDown className="mr-3 h-5 w-5" />
                 EXPORTAR PDF {selectedIds.size > 0 && `(${selectedIds.size})`}
               </Button>
-              
-              <Badge className={cn(
-                "px-5 py-2 h-12 flex items-center font-black text-xs uppercase tracking-widest border-none rounded-full transition-colors",
-                dateRange?.from ? "bg-primary/10 text-primary" : "bg-gray-100 text-gray-400"
-              )}>
-                {dateRange?.from ? "FILTRADO POR FECHA" : "MOSTRANDO TODO"}
-              </Badge>
             </div>
           </div>
         </CardHeader>
