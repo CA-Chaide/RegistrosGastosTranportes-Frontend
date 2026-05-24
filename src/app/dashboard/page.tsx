@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -6,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils";
 import jspdf from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DateRange } from "react-day-picker";
+import * as XLSX from 'xlsx';
 
 interface RegistroFactura {
   id: string;
@@ -211,6 +213,29 @@ export default function DashboardPage() {
     doc.save(`Reporte_Facturacion_Seleccionada_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
   };
 
+  const handleDownloadExcel = () => {
+    if (itemsParaExportar.length === 0) return;
+
+    const data = itemsParaExportar.map(reg => ({
+      'Fecha': format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
+      'N° Gasto': reg.numeroGasto || 'N/A',
+      'N° Factura': formatInvoice(reg.numeroFactura),
+      'Transporte': reg.transporte || 'N/A',
+      'Monto': reg.valorTotal,
+      'Estado': reg.estado
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Facturación");
+    
+    // Auto-ajustar anchos de columna (opcional pero recomendado)
+    const max_width = data.reduce((w, r) => Math.max(w, r['N° Factura'].length), 15);
+    worksheet["!cols"] = [{ wch: 20 }, { wch: 15 }, { wch: max_width }, { wch: 15 }, { wch: 12 }, { wch: 15 }];
+
+    XLSX.writeFile(workbook, `Reporte_Facturacion_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
+  };
+
   const handleClearFilter = () => {
     setDateRange(undefined);
     setStatusFilter("TODOS");
@@ -349,16 +374,28 @@ export default function DashboardPage() {
                 </PopoverContent>
               </Popover>
 
-              <Button 
-                variant="outline" 
-                size="lg" 
-                onClick={handleDownloadPDF}
-                disabled={selectedIds.size === 0}
-                className="border-2 border-primary text-primary hover:bg-primary/5 font-black h-12 px-6 rounded-xl transition-all"
-              >
-                <FileDown className="mr-3 h-5 w-5" />
-                EXPORTAR PDF {selectedIds.size > 0 && `(${selectedIds.size})`}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="lg" 
+                  onClick={handleDownloadPDF}
+                  disabled={selectedIds.size === 0}
+                  className="border-2 border-primary text-primary hover:bg-primary/5 font-black h-12 px-6 rounded-xl transition-all"
+                >
+                  <FileDown className="mr-3 h-5 w-5" />
+                  EXPORTAR PDF {selectedIds.size > 0 && `(${selectedIds.size})`}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="lg" 
+                  onClick={handleDownloadExcel}
+                  disabled={selectedIds.size === 0}
+                  className="border-2 border-green-600 text-green-600 hover:bg-green-50 font-black h-12 px-6 rounded-xl transition-all"
+                >
+                  <FileSpreadsheet className="mr-3 h-5 w-5" />
+                  EXPORTAR EXCEL {selectedIds.size > 0 && `(${selectedIds.size})`}
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
