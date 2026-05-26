@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -48,7 +49,7 @@ export default function DashboardPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [entregadosFisicos, setEntregadosFisicos] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string>("TODOS");
+  const [statusFilter, setStatusFilter] = useState<string>("PENDIENTE");
   const [invoiceFilter, setInvoiceFilter] = useState<string>("");
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -115,7 +116,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateRange, statusFilter, invoiceFilter]);
+  }, [dateRange, statusFilter, invoiceFilter, entregadosFisicos]);
 
   const pagedRegistros = useMemo(() => {
     let start = 0;
@@ -255,7 +256,7 @@ export default function DashboardPage() {
 
   const handleClearFilter = () => {
     setDateRange(undefined);
-    setStatusFilter("TODOS");
+    setStatusFilter("PENDIENTE");
     setInvoiceFilter("");
   };
 
@@ -291,9 +292,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-orange-600">
-               {registros.filter(r => r.estado.toUpperCase() === 'PENDIENTE').length}
+               {registros.filter(r => !entregadosFisicos.has(r.id)).length}
             </div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Por liquidar</p>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Por liquidar físicamente</p>
           </CardContent>
         </Card>
 
