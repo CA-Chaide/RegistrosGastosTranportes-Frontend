@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { serviciosService } from '@/services/servicios.service';
+import { registroGastosTransporte } from '@/services/registroGastosTransporte.service';
 import { Loader2, Search, User, ChevronDown, ChevronRight, Package, ReceiptText, Hash, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -25,7 +25,7 @@ interface RegistroFactura {
 }
 
 interface GrupoRegistro {
-  numeroGastoKey: string;
+  keyFactura: string;
   numeroRegistro: string;
   codigoProveedor: string;
   numeroFactura: string;
@@ -48,8 +48,22 @@ export default function ConsultaRegistrosPage() {
   const fetchRegistros = async () => {
     setLoading(true);
     try {
-      const resp = await serviciosService.getRegistrosFacturas();
-      setRegistros(resp.data || []);
+      const resp = await registroGastosTransporte.getAll();
+      const rawData = resp.data || [];
+      
+      const mappedData: RegistroFactura[] = rawData.map((item: any) => ({
+        id: String(item.id || crypto.randomUUID()),
+        numeroRegistro: item.NumFactura || 'N/A',
+        codigoProveedor: item.AgenteTransporte || '',
+        numeroFactura: item.NumFactura || '',
+        valorTotal: parseFloat(item.ValorGasto || item.valor || 0),
+        fechaRegistro: item.FechaRegistro || new Date().toISOString(),
+        estado: item.Estado === 'A' ? 'Procesado' : (item.Estado || 'Pendiente'),
+        numeroGasto: item.GastoTransporte || item.NumGasto || item.Transporte || 'N/A',
+        transporte: item.Transporte || item.transporte || 'N/A'
+      }));
+      
+      setRegistros(mappedData);
     } catch (error) {
       console.error("Error fetching registros:", error);
     } finally {
@@ -84,10 +98,10 @@ export default function ConsultaRegistrosPage() {
     const groups: Record<string, GrupoRegistro> = {};
     
     registros.forEach(reg => {
-      const key = reg.numeroRegistro || (reg as any).numeroGasto || reg.id;
+      const key = reg.numeroFactura;
       if (!groups[key]) {
         groups[key] = {
-          numeroGastoKey: key,
+          keyFactura: key,
           numeroRegistro: reg.numeroRegistro || 'N/A',
           codigoProveedor: reg.codigoProveedor,
           numeroFactura: reg.numeroFactura,
@@ -167,15 +181,15 @@ export default function ConsultaRegistrosPage() {
                     </TableRow>
                   ) : (
                     groupedRegistros.map((grupo) => {
-                      const isExpanded = expandedRows.has(grupo.numeroGastoKey);
+                      const isExpanded = expandedRows.has(grupo.keyFactura);
                       return (
-                        <React.Fragment key={grupo.numeroGastoKey}>
+                        <React.Fragment key={grupo.keyFactura}>
                           <TableRow 
                             className={cn(
                               "hover:bg-primary/5 transition-all cursor-pointer group",
                               isExpanded && "bg-primary/5"
                             )}
-                            onClick={() => toggleRow(grupo.numeroGastoKey)}
+                            onClick={() => toggleRow(grupo.keyFactura)}
                           >
                             <TableCell className="text-center">
                               {isExpanded ? (
@@ -222,7 +236,7 @@ export default function ConsultaRegistrosPage() {
                             <TableCell className="text-center px-8">
                               <Badge className={cn(
                                 "px-4 py-1 font-black uppercase text-[10px] tracking-widest shadow-md border-none",
-                                grupo.estado.toUpperCase() === 'PROCESADO' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600"
+                                grupo.estado.toUpperCase() === 'PROCESADO' || grupo.estado.toUpperCase() === 'A' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600"
                               )}>
                                 {grupo.estado}
                               </Badge>
@@ -247,31 +261,28 @@ export default function ConsultaRegistrosPage() {
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
-                                        {grupo.items.map((item) => {
-                                          const gastoValor = item.numeroGasto || (item as any).GastoTransporte || (item as any).Gasto || (item as any).NumGasto || 'N/A';
-                                          return (
-                                            <TableRow key={item.id} className="hover:bg-primary/5 group/sub">
-                                              <TableCell className="py-4 pl-8">
-                                                <div className="flex items-center gap-2 font-bold text-gray-600">
-                                                  <ReceiptText className="h-4 w-4 opacity-50 text-primary" />
-                                                  {item.transporte || 'N/A'}
-                                                </div>
-                                              </TableCell>
-                                              <TableCell className="text-center">
-                                                <div className="inline-flex items-center gap-2 bg-muted/50 px-3 py-1 rounded-full font-black text-primary text-sm">
-                                                  <Hash className="h-3 w-3" />
-                                                  {gastoValor}
-                                                </div>
-                                              </TableCell>
-                                              <TableCell className="text-right pr-8">
-                                                 <div className="flex items-center justify-end gap-1 font-black text-lg tracking-tighter text-gray-900">
-                                                    <DollarSign className="h-4 w-4 opacity-30" />
-                                                    {item.valorTotal.toFixed(2)}
-                                                 </div>
-                                              </TableCell>
-                                            </TableRow>
-                                          );
-                                        })}
+                                        {grupo.items.map((item) => (
+                                          <TableRow key={item.id} className="hover:bg-primary/5 group/sub">
+                                            <TableCell className="py-4 pl-8">
+                                              <div className="flex items-center gap-2 font-bold text-gray-600">
+                                                <ReceiptText className="h-4 w-4 opacity-50 text-primary" />
+                                                {item.transporte || 'N/A'}
+                                              </div>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                              <div className="inline-flex items-center gap-2 bg-muted/50 px-3 py-1 rounded-full font-black text-primary text-sm">
+                                                <Hash className="h-3 w-3" />
+                                                {item.numeroGasto || 'N/A'}
+                                              </div>
+                                            </TableCell>
+                                            <TableCell className="text-right pr-8">
+                                               <div className="flex items-center justify-end gap-1 font-black text-lg tracking-tighter text-gray-900">
+                                                  <DollarSign className="h-4 w-4 opacity-30" />
+                                                  {item.valorTotal.toFixed(2)}
+                                               </div>
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
                                       </TableBody>
                                       <tfoot className="bg-gray-50 border-t-2">
                                         <TableRow className="hover:bg-transparent">

@@ -1,3 +1,4 @@
+
 import type { BodyListResponse } from "@/types/body-list-response";
 import type { BodyResponse } from "@/types/body-response";
 import { environment } from "@/environments/environments.prod";
@@ -57,15 +58,15 @@ export const serviciosService = {
     const now = new Date().toISOString();
     const results = [];
 
-    // Para el prototipo y persistencia, guardamos cada ítem usando el servicio de registro
+    // Persistencia oficial en la tabla RegistrosGastosTransporte
     for (const item of data.items) {
       const registro = {
-        id: 0, // El backend genera el ID
-        AgenteTransporte: data.codigoProveedor,
-        NumFactura: data.numeroFactura,
-        Transporte: item.numeroTransporte,
-        GastoTransporte: item.numeroGasto, // Mapeo al campo correcto
-        ValorGasto: item.valor,
+        id: 0,
+        AgenteTransporte: String(data.codigoProveedor),
+        NumFactura: String(data.numeroFactura),
+        Transporte: String(item.numeroTransporte),
+        GastoTransporte: String(item.numeroGasto),
+        ValorGasto: Number(item.valor),
         FechaRegistro: now,
         Estado: 'A'
       };
@@ -78,24 +79,7 @@ export const serviciosService = {
       }
     }
 
-    // Persistencia local para el dashboard (simulación de respuesta exitosa)
     const numeroRegistro = `REG-${Math.floor(Math.random() * 900000) + 100000}`;
-    const nuevosRegistrosLocales = data.items.map((item: any) => ({
-      id: crypto.randomUUID(),
-      numeroRegistro: numeroRegistro,
-      codigoProveedor: data.codigoProveedor,
-      numeroFactura: data.numeroFactura,
-      numeroGasto: item.numeroGasto,
-      transporte: item.numeroTransporte,
-      valorTotal: item.valor,
-      fechaRegistro: now,
-      estado: 'Procesado'
-    }));
-
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const currentList = stored ? JSON.parse(stored) : [];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...nuevosRegistrosLocales, ...currentList]));
-
     return {
       data: {
         numeroRegistroUnico: numeroRegistro,
@@ -117,45 +101,11 @@ export const serviciosService = {
     if (response && response.ok) {
       const json = await response.json();
       remoteData = json.data || [];
-    } else {
-      const now = new Date().toISOString();
-      remoteData = [
-        { 
-          id: '1a', 
-          numeroRegistro: 'REG-845122', 
-          codigoProveedor: '5220802', 
-          numeroFactura: '001-001-0000840', 
-          numeroGasto: '0000141034',
-          transporte: '0000296293',
-          valorTotal: 186.00, 
-          fechaRegistro: now,
-          estado: 'Procesado'
-        },
-        { 
-          id: '2', 
-          numeroRegistro: 'REG-992103', 
-          codigoProveedor: '5220802', 
-          numeroFactura: '001-001-0000955', 
-          numeroGasto: '0000141035',
-          transporte: '0000296294',
-          valorTotal: 1245.50, 
-          fechaRegistro: now,
-          estado: 'Procesado'
-        }
-      ];
-    }
-
-    const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
-    const localData = stored ? JSON.parse(stored) : [];
-
-    let combined = [...localData, ...remoteData];
-    if (codigoProveedor) {
-      combined = combined.filter(r => r.codigoProveedor === codigoProveedor);
     }
 
     return {
-      data: combined,
-      size: combined.length
+      data: remoteData,
+      size: remoteData.length
     };
   },
 

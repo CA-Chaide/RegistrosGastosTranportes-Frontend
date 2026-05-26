@@ -75,24 +75,21 @@ export default function DashboardPage() {
         const user = storedUser ? JSON.parse(storedUser) : null;
         const proveedorId = user?.usuario || user?.codigo_usuario || '';
 
-        // Recuperar registros usando el método getAll del servicio oficial
         const resp = await registroGastosTransporte.getAll();
         const rawData = resp.data || [];
         
-        // Mapear los datos del servicio a nuestra interfaz interna
         const mappedData: RegistroFactura[] = rawData.map((item: any) => ({
           id: String(item.id || crypto.randomUUID()),
           numeroRegistro: item.NumFactura || 'N/A',
           codigoProveedor: item.AgenteTransporte || '',
           numeroFactura: item.NumFactura || '',
-          valorTotal: parseFloat(item.ValorGasto || 0),
+          valorTotal: parseFloat(item.ValorGasto || item.valor || 0),
           fechaRegistro: item.FechaRegistro || new Date().toISOString(),
           estado: item.Estado === 'A' ? 'Procesado' : (item.Estado || 'Pendiente'),
-          numeroGasto: item.GastoTransporte || item.NumGasto || 'N/A',
-          transporte: item.Transporte || 'N/A'
+          numeroGasto: item.GastoTransporte || item.NumGasto || item.transporte || 'N/A',
+          transporte: item.Transporte || item.transporte || 'N/A'
         }));
 
-        // Filtrar por el agente logueado si existe
         const filteredByAgent = proveedorId 
           ? mappedData.filter(r => String(r.codigoProveedor) === String(proveedorId))
           : mappedData;
