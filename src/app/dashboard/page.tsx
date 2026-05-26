@@ -255,6 +255,11 @@ export default function DashboardPage() {
     setInvoiceFilter("");
   };
 
+  // Cálculo de indicadores por facturas únicas
+  const totalFacturasRegistradas = new Set(registros.map(r => r.numeroRegistro)).size;
+  const totalFacturasProcesadas = new Set(registros.filter(r => r.estado.toUpperCase() === 'PROCESADO').map(r => r.numeroRegistro)).size;
+  const totalFacturasPendientesFisico = groupedRegistros.filter(g => !entregadosFisicos.has(g.numeroRegistro)).length;
+
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-gray-50/50">
       <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
@@ -267,12 +272,12 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="border-l-8 border-l-blue-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Transportes</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Facturas Registradas</CardTitle>
             <div className="p-2 bg-blue-100 rounded-lg"><Package className="h-5 w-5 text-blue-600" /></div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black tracking-tighter text-blue-700">{registros.length}</div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Unidades vinculadas históricas</p>
+            <div className="text-3xl font-black tracking-tighter text-blue-700">{totalFacturasRegistradas}</div>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas ingresadas en el sistema</p>
           </CardContent>
         </Card>
 
@@ -283,7 +288,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-orange-600">
-               {groupedRegistros.filter(g => !entregadosFisicos.has(g.numeroRegistro)).length}
+               {totalFacturasPendientesFisico}
             </div>
             <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas por liquidar físicamente</p>
           </CardContent>
@@ -291,14 +296,14 @@ export default function DashboardPage() {
 
         <Card className="border-l-8 border-l-green-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Registros Exitosos</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Facturas Procesadas</CardTitle>
             <div className="p-2 bg-green-100 rounded-lg"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-green-700">
-              {registros.filter(r => r.estado.toUpperCase() === 'PROCESADO').length}
+              {totalFacturasProcesadas}
             </div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas procesadas</p>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas validadas exitosamente</p>
           </CardContent>
         </Card>
       </div>
