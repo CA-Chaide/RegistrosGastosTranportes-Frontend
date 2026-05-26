@@ -1,6 +1,7 @@
 import type { BodyListResponse } from "@/types/body-list-response";
 import type { BodyResponse } from "@/types/body-response";
 import { environment } from "@/environments/environments.prod";
+import { registroGastosTransporte } from './registroGastosTransporte.service';
 
 const API_URL = `${environment.apiURL_RGT}/api/servicios`;
 const STORAGE_KEY = 'RGT_LOCAL_REGISTROS';
@@ -50,47 +51,64 @@ export const serviciosService = {
   },
 
   /**
-   * Realiza el registro final en el sistema y persiste localmente para el prototipo.
+   * Realiza el registro final en el sistema utilizando el servicio RegistroGastosTransporte.
    */
   async registrarFacturaTransportista(data: any): Promise<BodyResponse<any>> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const numeroRegistro = `REG-${Math.floor(Math.random() * 900000) + 100000}`;
-        const now = new Date().toISOString();
+    const now = new Date().toISOString();
+    const results = [];
 
-        // Convertir los items de la factura en registros individuales para el dashboard
-        const nuevosRegistros = data.items.map((item: any) => ({
-          id: crypto.randomUUID(),
-          numeroRegistro: numeroRegistro,
-          codigoProveedor: data.codigoProveedor,
-          numeroFactura: data.numeroFactura,
-          numeroGasto: item.numeroGasto,
-          transporte: item.numeroTransporte,
-          valorTotal: item.valor,
-          fechaRegistro: now,
-          estado: 'Procesado'
-        }));
+    // Para el prototipo y persistencia, guardamos cada ítem usando el servicio de registro
+    for (const item of data.items) {
+      const registro = {
+        id: 0, // El backend genera el ID
+        AgenteTransporte: data.codigoProveedor,
+        NumFactura: data.numeroFactura,
+        Transporte: item.numeroTransporte,
+        GastoTransporte: item.numeroGasto, // Mapeo al campo correcto
+        ValorGasto: item.valor,
+        FechaRegistro: now,
+        Estado: 'A'
+      };
+      
+      try {
+        const resp = await registroGastosTransporte.save(registro as any);
+        results.push(resp.data || resp);
+      } catch (e) {
+        console.error("Error al guardar registro individual:", e);
+      }
+    }
 
-        // Guardar en localStorage
-        const stored = localStorage.getItem(STORAGE_KEY);
-        const currentList = stored ? JSON.parse(stored) : [];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify([...nuevosRegistros, ...currentList]));
+    // Persistencia local para el dashboard (simulación de respuesta exitosa)
+    const numeroRegistro = `REG-${Math.floor(Math.random() * 900000) + 100000}`;
+    const nuevosRegistrosLocales = data.items.map((item: any) => ({
+      id: crypto.randomUUID(),
+      numeroRegistro: numeroRegistro,
+      codigoProveedor: data.codigoProveedor,
+      numeroFactura: data.numeroFactura,
+      numeroGasto: item.numeroGasto,
+      transporte: item.numeroTransporte,
+      valorTotal: item.valor,
+      fechaRegistro: now,
+      estado: 'Procesado'
+    }));
 
-        resolve({
-          data: {
-            numeroRegistroUnico: numeroRegistro,
-            mensaje: "Registro completado exitosamente"
-          }
-        });
-      }, 1000);
-    });
+    const stored = localStorage.getItem(STORAGE_KEY);
+    const currentList = stored ? JSON.parse(stored) : [];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...nuevosRegistrosLocales, ...currentList]));
+
+    return {
+      data: {
+        numeroRegistroUnico: numeroRegistro,
+        mensaje: "Registro completado exitosamente",
+        itemsProcesados: results.length
+      }
+    };
   },
 
   /**
    * Obtiene el historial de registros combinando datos locales y remotos.
    */
   async getRegistrosFacturas(codigoProveedor?: string): Promise<BodyListResponse<any>> {
-    // Intentar obtener de la API
     const response = await fetch(`${API_URL}/listarRegistros${codigoProveedor ? `?codigoProveedor=${codigoProveedor}` : ''}`, {
       cache: 'no-store'
     }).catch(() => null);
@@ -100,40 +118,26 @@ export const serviciosService = {
       const json = await response.json();
       remoteData = json.data || [];
     } else {
-      // Datos de ejemplo mejorados para mostrar desglose de múltiples transportes
       const now = new Date().toISOString();
       remoteData = [
-        // Registro con múltiple desglose (Dos transportes para un mismo registro)
         { 
           id: '1a', 
           numeroRegistro: 'REG-845122', 
           codigoProveedor: '5220802', 
           numeroFactura: '001-001-0000840', 
-          numeroGasto: 'G-10294',
-          transporte: '0000534650',
-          valorTotal: 250.00, 
+          numeroGasto: '0000141034',
+          transporte: '0000296293',
+          valorTotal: 186.00, 
           fechaRegistro: now,
           estado: 'Procesado'
         },
-        { 
-          id: '1b', 
-          numeroRegistro: 'REG-845122', 
-          codigoProveedor: '5220802', 
-          numeroFactura: '001-001-0000840', 
-          numeroGasto: 'G-10294-B',
-          transporte: '0000534655',
-          valorTotal: 261.00, 
-          fechaRegistro: now,
-          estado: 'Procesado'
-        },
-        // Registro único
         { 
           id: '2', 
           numeroRegistro: 'REG-992103', 
           codigoProveedor: '5220802', 
           numeroFactura: '001-001-0000955', 
-          numeroGasto: 'G-10295',
-          transporte: '0000534651',
+          numeroGasto: '0000141035',
+          transporte: '0000296294',
           valorTotal: 1245.50, 
           fechaRegistro: now,
           estado: 'Procesado'
@@ -141,11 +145,9 @@ export const serviciosService = {
       ];
     }
 
-    // Obtener datos guardados localmente
     const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
     const localData = stored ? JSON.parse(stored) : [];
 
-    // Combinar y filtrar por proveedor si es necesario
     let combined = [...localData, ...remoteData];
     if (codigoProveedor) {
       combined = combined.filter(r => r.codigoProveedor === codigoProveedor);
@@ -157,7 +159,9 @@ export const serviciosService = {
     };
   },
 
-
+  /**
+   * Obtiene información detallada de gastos de transporte según filtros de negocio.
+   */
   async getInformacionGastosTransportes(estado: string, fecha_inicio: string, fecha_fin: string, agente_transporte: string): Promise<BodyListResponse<any>> {
     const response = await fetch(API_URL + '/getDashboardByInfo', {
       method: 'POST',
@@ -165,15 +169,19 @@ export const serviciosService = {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache'
       },
-      body: JSON.stringify({ estado: estado, fecha_inicio: fecha_inicio, fecha_fin: fecha_fin, agente_transporte: agente_transporte }),
+      body: JSON.stringify({ 
+        estado: estado, 
+        fecha_inicio: fecha_inicio, 
+        fecha_fin: fecha_fin, 
+        agente_transporte: agente_transporte 
+      }),
       cache: 'no-store'
     });
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({ message: 'Error desconocido' }));
-      throw new Error(errorBody.message || 'Error al consultar la factura');
+      throw new Error(errorBody.message || 'Error al consultar información de gastos');
     }
     return response.json();
   },
-
 
 };

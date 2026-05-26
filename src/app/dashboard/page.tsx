@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -44,7 +43,7 @@ interface RegistroFactura {
 }
 
 interface GrupoDashboard {
-  numeroRegistro: string;
+  numeroGastoPrincipal: string;
   codigoProveedor: string;
   numeroFactura: string;
   fechaRegistro: string;
@@ -71,7 +70,11 @@ export default function DashboardPage() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const resp = await serviciosService.getRegistrosFacturas();
+        const storedUser = localStorage.getItem('user');
+        const user = storedUser ? JSON.parse(storedUser) : null;
+        const proveedorId = user?.usuario || user?.codigo_usuario || '';
+
+        const resp = await serviciosService.getRegistrosFacturas(String(proveedorId));
         setRegistros(resp.data || []);
 
         const storedFisicos = localStorage.getItem(FISICOS_STORAGE_KEY);
@@ -104,12 +107,12 @@ export default function DashboardPage() {
     return clean;
   };
 
-  const toggleRow = (numeroRegistro: string) => {
+  const toggleRow = (numeroGasto: string) => {
     const next = new Set(expandedRows);
-    if (next.has(numeroRegistro)) {
-      next.delete(numeroRegistro);
+    if (next.has(numeroGasto)) {
+      next.delete(numeroGasto);
     } else {
-      next.add(numeroRegistro);
+      next.add(numeroGasto);
     }
     setExpandedRows(next);
   };
@@ -136,10 +139,10 @@ export default function DashboardPage() {
     });
 
     baseFiltrada.forEach(reg => {
-      const key = reg.numeroRegistro;
+      const key = reg.numeroGasto || reg.numeroRegistro;
       if (!groups[key]) {
         groups[key] = {
-          numeroRegistro: key,
+          numeroGastoPrincipal: key,
           codigoProveedor: reg.codigoProveedor,
           numeroFactura: reg.numeroFactura,
           fechaRegistro: reg.fechaRegistro,
@@ -153,7 +156,7 @@ export default function DashboardPage() {
     });
 
     return Object.values(groups).filter(grupo => {
-      const isEntregado = entregadosFisicos.has(grupo.numeroRegistro);
+      const isEntregado = entregadosFisicos.has(grupo.numeroGastoPrincipal);
       if (statusFilter === "ENTREGADO") return isEntregado;
       if (statusFilter === "PENDIENTE") return !isEntregado;
       return true;
@@ -205,15 +208,15 @@ export default function DashboardPage() {
     setSelectedIds(next);
   };
 
-  const handleToggleEntregado = (numeroRegistro: string, checked: boolean) => {
+  const handleToggleEntregado = (numeroGasto: string, checked: boolean) => {
     const next = new Set(entregadosFisicos);
-    if (checked) next.add(numeroRegistro);
-    else next.delete(numeroRegistro);
+    if (checked) next.add(numeroGasto);
+    else next.delete(numeroGasto);
     setEntregadosFisicos(next);
     localStorage.setItem(FISICOS_STORAGE_KEY, JSON.stringify(Array.from(next)));
     
     if (checked && statusFilter === "PENDIENTE") {
-       const idsToRemove = registros.filter(r => r.numeroRegistro === numeroRegistro).map(r => r.id);
+       const idsToRemove = registros.filter(r => (r.numeroGasto || r.numeroRegistro) === numeroGasto).map(r => r.id);
        setSelectedIds(prev => {
           const updated = new Set(prev);
           idsToRemove.forEach(id => updated.delete(id));
@@ -228,16 +231,17 @@ export default function DashboardPage() {
     if (itemsParaExportar.length === 0) return;
     const doc = new jspdf();
     const groupedExport = itemsParaExportar.reduce((acc, item) => {
-      if (!acc[item.numeroRegistro]) acc[item.numeroRegistro] = [];
-      acc[item.numeroRegistro].push(item);
+      const key = item.numeroGasto || item.numeroRegistro;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(item);
       return acc;
     }, {} as Record<string, RegistroFactura[]>);
 
-    const registroIds = Object.keys(groupedExport);
+    const gastoIds = Object.keys(groupedExport);
 
-    registroIds.forEach((regId, index) => {
+    gastoIds.forEach((gId, index) => {
       if (index > 0) doc.addPage();
-      const items = groupedExport[regId];
+      const items = groupedExport[gId];
       const firstItem = items[0];
       const totalFactura = items.reduce((sum, i) => sum + i.valorTotal, 0);
 
@@ -247,12 +251,12 @@ export default function DashboardPage() {
       
       doc.setFontSize(10);
       doc.setTextColor(50);
-      doc.text(`N° REGISTRO ÚNICO: ${regId}`, 14, 32);
+      doc.text(`N° GASTO TRANSPORTE: ${gId}`, 14, 32);
       doc.text(`N° FACTURA: ${formatInvoice(firstItem.numeroFactura)}`, 14, 38);
       doc.text(`CÓDIGO PROVEEDOR: ${firstItem.codigoProveedor}`, 14, 44);
       doc.text(`FECHA DE PROCESO: ${format(new Date(firstItem.fechaRegistro), "dd/MM/yyyy HH:mm")}`, 14, 50);
       
-      const esFisico = entregadosFisicos.has(regId);
+      const esFisico = entregadosFisicos.has(gId);
       doc.setFontSize(11);
       doc.setTextColor(esFisico ? 22 : 220, esFisico ? 163 : 38, esFisico ? 74 : 38);
       doc.text(`ENTREGA FÍSICA: ${esFisico ? 'CONFIRMADA' : 'PENDIENTE'}`, 14, 58);
@@ -278,10 +282,10 @@ export default function DashboardPage() {
 
       doc.setFontSize(8);
       doc.setTextColor(150);
-      doc.text(`Página ${index + 1} de ${registroIds.length} - Generado por Chaide RGT v1.0`, 14, doc.internal.pageSize.height - 10);
+      doc.text(`Página ${index + 1} de ${gastoIds.length} - Generado por Chaide RGT v1.0`, 14, doc.internal.pageSize.height - 10);
     });
 
-    doc.save(`Reporte_Facturas_Individuales_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
+    doc.save(`Reporte_Gastos_Transportes_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
   };
 
   const handleDownloadExcel = () => {
@@ -293,7 +297,7 @@ export default function DashboardPage() {
       'Transporte': reg.transporte || 'N/A',
       'Monto': reg.valorTotal,
       'Estado': reg.estado,
-      'Entregado Físico': entregadosFisicos.has(reg.numeroRegistro) ? 'SÍ' : 'NO'
+      'Entregado Físico': entregadosFisicos.has(reg.numeroGasto || reg.numeroRegistro) ? 'SÍ' : 'NO'
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -309,16 +313,16 @@ export default function DashboardPage() {
 
   const anyFilterActive = invoiceFilter.trim() !== "" || statusFilter !== "PENDIENTE" || dateRange !== undefined;
 
-  const totalFacturasRegistradas = new Set(registros.map(r => r.numeroRegistro)).size;
-  const totalFacturasProcesadas = new Set(registros.filter(r => entregadosFisicos.has(r.numeroRegistro)).map(r => r.numeroRegistro)).size;
-  const totalFacturasPendientesFisico = new Set(registros.filter(r => !entregadosFisicos.has(r.numeroRegistro)).map(r => r.numeroRegistro)).size;
+  const totalFacturasRegistradas = new Set(registros.map(r => r.numeroGasto || r.numeroRegistro)).size;
+  const totalFacturasProcesadas = new Set(registros.filter(r => entregadosFisicos.has(r.numeroGasto || r.numeroRegistro)).map(r => r.numeroGasto || r.numeroRegistro)).size;
+  const totalFacturasPendientesFisico = new Set(registros.filter(r => !entregadosFisicos.has(r.numeroGasto || r.numeroRegistro)).map(r => r.numeroGasto || r.numeroRegistro)).size;
 
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-gray-50/50">
       <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-primary uppercase">Panel de Control Operativo</h2>
-          <p className="text-muted-foreground font-medium text-lg">Resumen detallado de facturación y transportes registrados.</p>
+          <p className="text-muted-foreground font-medium text-lg">Gestión detallada de gastos de transporte por número de gasto.</p>
         </div>
       </div>
 
@@ -328,12 +332,12 @@ export default function DashboardPage() {
           onClick={() => setStatusFilter("TODOS")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-blue-600 transition-colors">Facturas Registradas</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-blue-600 transition-colors">Gastos Registrados</CardTitle>
             <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors"><Package className="h-5 w-5 text-blue-600" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-blue-700">{totalFacturasRegistradas}</div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver todos los registros</p>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver todos los gastos</p>
           </CardContent>
         </Card>
 
@@ -342,14 +346,14 @@ export default function DashboardPage() {
           onClick={() => setStatusFilter("PENDIENTE")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-orange-600 transition-colors">Pendientes</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-orange-600 transition-colors">Pendientes Físicos</CardTitle>
             <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors"><Clock className="h-5 w-5 text-orange-500" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-orange-600">
                {totalFacturasPendientesFisico}
             </div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver pendientes físicos</p>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver pendientes</p>
           </CardContent>
         </Card>
 
@@ -358,7 +362,7 @@ export default function DashboardPage() {
           onClick={() => setStatusFilter("ENTREGADO")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-green-600 transition-colors">Facturas Procesadas</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-green-600 transition-colors">Gastos Procesados</CardTitle>
             <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
           </CardHeader>
           <CardContent>
@@ -374,18 +378,16 @@ export default function DashboardPage() {
         <CardHeader className="bg-white border-b-2 border-gray-100 px-10 py-8">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div>
-              <CardTitle className="text-3xl font-black text-primary uppercase tracking-tighter">Detalles de Facturación</CardTitle>
+              <CardTitle className="text-3xl font-black text-primary uppercase tracking-tighter">Detalles de Gastos</CardTitle>
               <CardDescription className="font-semibold text-base mt-1 text-gray-500">
-                {statusFilter === "PENDIENTE" ? "Mostrando facturas pendientes por entregar físicamente" : 
-                 statusFilter === "ENTREGADO" ? "Mostrando facturas ya entregadas físicamente" : 
-                 "Mostrando todos los registros históricos"}
+                Visualización agrupada por número de gasto de transporte.
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-4">
               <div className="relative w-[220px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/60" />
                 <Input 
-                  placeholder="FILTRAR POR FACTURA" 
+                  placeholder="BUSCAR POR FACTURA" 
                   value={invoiceFilter} 
                   onChange={(e) => setInvoiceFilter(e.target.value)} 
                   className="h-12 pl-10 pr-10 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight bg-white" 
@@ -406,7 +408,7 @@ export default function DashboardPage() {
                 <SelectContent className="rounded-xl border-none shadow-2xl">
                   <SelectItem value="PENDIENTE" className="font-bold text-orange-600 uppercase">PENDIENTE FÍSICO</SelectItem>
                   <SelectItem value="ENTREGADO" className="font-bold text-green-600 uppercase">ENTREGADO FÍSICO</SelectItem>
-                  <SelectItem value="TODOS" className="font-bold">TODOS LOS REGISTROS</SelectItem>
+                  <SelectItem value="TODOS" className="font-bold">TODOS LOS GASTOS</SelectItem>
                 </SelectContent>
               </Select>
               <Popover>
@@ -446,7 +448,7 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-32 gap-6"><Loader2 className="h-14 w-14 animate-spin text-primary opacity-50" /><p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Sincronizando datos operativos...</p></div>
+            <div className="flex flex-col items-center justify-center py-32 gap-6"><Loader2 className="h-14 w-14 animate-spin text-primary opacity-50" /><p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Sincronizando gastos operativos...</p></div>
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -455,30 +457,30 @@ export default function DashboardPage() {
                     <TableRow className="hover:bg-transparent border-b-2">
                       <TableHead className="w-[50px] py-6 px-4 text-center">
                         <Checkbox 
-                          checked={groupedRegistros.length > 0 && Array.from(selectedIds).length === registros.filter(r => groupedRegistros.some(g => g.numeroRegistro === r.numeroRegistro)).length}
+                          checked={groupedRegistros.length > 0 && Array.from(selectedIds).length === registros.filter(r => groupedRegistros.some(g => g.numeroGastoPrincipal === (r.numeroGasto || r.numeroRegistro))).length}
                           onCheckedChange={handleSelectAll}
                         />
                       </TableHead>
                       <TableHead className="w-[40px]"></TableHead>
-                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest py-6 px-4">Fecha</TableHead>
+                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest py-6 px-4">Fecha Registro</TableHead>
+                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Gasto</TableHead>
                       <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
-                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">Proveedor</TableHead>
-                      <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto Total</TableHead>
+                      <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto Gasto</TableHead>
                       <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-6 tracking-widest">Físico</TableHead>
                       <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pagedGroups.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No hay facturas pendientes que mostrar.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No hay gastos pendientes que mostrar.</TableCell></TableRow>
                     ) : (
                       pagedGroups.map((grupo) => {
-                        const isExpanded = expandedRows.has(grupo.numeroRegistro);
+                        const isExpanded = expandedRows.has(grupo.numeroGastoPrincipal);
                         const groupAllSelected = grupo.items.every(i => selectedIds.has(i.id));
-                        const isFisicoEntregado = entregadosFisicos.has(grupo.numeroRegistro);
+                        const isFisicoEntregado = entregadosFisicos.has(grupo.numeroGastoPrincipal);
                         
                         return (
-                          <React.Fragment key={grupo.numeroRegistro}>
+                          <React.Fragment key={grupo.numeroGastoPrincipal}>
                             <TableRow className={cn("hover:bg-primary/5 transition-all border-b border-gray-100 group cursor-pointer", isExpanded && "bg-primary/5")}>
                               <TableCell className="py-6 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                                 <Checkbox 
@@ -486,32 +488,32 @@ export default function DashboardPage() {
                                   onCheckedChange={(checked) => handleSelectGroup(grupo.items, !!checked)}
                                 />
                               </TableCell>
-                              <TableCell className="text-center" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                              <TableCell className="text-center" onClick={() => toggleRow(grupo.numeroGastoPrincipal)}>
                                 {isExpanded ? <ChevronDown className="h-6 w-6 text-primary" /> : <ChevronRight className="h-6 w-6 text-muted-foreground" />}
                               </TableCell>
-                              <TableCell className="py-6 px-4 text-center" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                              <TableCell className="py-6 px-4 text-center" onClick={() => toggleRow(grupo.numeroGastoPrincipal)}>
                                 <div className="flex flex-col">
                                   <span className="font-black text-sm text-gray-900">{format(new Date(grupo.fechaRegistro), "dd/MM/yyyy")}</span>
                                   <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">{format(new Date(grupo.fechaRegistro), "HH:mm 'HRS'")}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="font-black text-gray-900 tabular-nums text-center tracking-tight" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                              <TableCell className="font-black text-primary text-center tracking-tight" onClick={() => toggleRow(grupo.numeroGastoPrincipal)}>
+                                {grupo.numeroGastoPrincipal}
+                              </TableCell>
+                              <TableCell className="text-center font-bold text-gray-600" onClick={() => toggleRow(grupo.numeroGastoPrincipal)}>
                                 {formatInvoice(grupo.numeroFactura)}
                               </TableCell>
-                              <TableCell className="text-center font-bold text-gray-600" onClick={() => toggleRow(grupo.numeroRegistro)}>
-                                {grupo.codigoProveedor}
-                              </TableCell>
-                              <TableCell className="text-right px-10" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                              <TableCell className="text-right px-10" onClick={() => toggleRow(grupo.numeroGastoPrincipal)}>
                                 <span className="text-xl font-black text-primary tracking-tighter">${grupo.valorTotalAcumulado.toFixed(2)}</span>
                               </TableCell>
                               <TableCell className="text-center px-6" onClick={(e) => e.stopPropagation()}>
                                 <Checkbox 
                                   checked={isFisicoEntregado} 
-                                  onCheckedChange={(checked) => handleToggleEntregado(grupo.numeroRegistro, !!checked)}
+                                  onCheckedChange={(checked) => handleToggleEntregado(grupo.numeroGastoPrincipal, !!checked)}
                                   className="border-2 border-primary/50 data-[state=checked]:bg-primary h-6 w-6"
                                 />
                               </TableCell>
-                              <TableCell className="text-center px-10" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                              <TableCell className="text-center px-10" onClick={() => toggleRow(grupo.numeroGastoPrincipal)}>
                                 <Badge className={cn("px-4 py-1 font-black uppercase text-[9px] tracking-widest", grupo.estado.toUpperCase() === 'PROCESADO' ? "bg-green-600" : "bg-orange-500")}>
                                   {grupo.estado}
                                 </Badge>
@@ -522,16 +524,16 @@ export default function DashboardPage() {
                                 <TableCell colSpan={8} className="p-0">
                                   <div className="p-6">
                                     <div className="flex items-center gap-2 mb-4 text-primary font-black uppercase text-xs tracking-widest">
-                                      <Package className="h-4 w-4" /> Desglose de Transportes y Gastos vinculados a la factura
+                                      <Package className="h-4 w-4" /> Detalle de Transportes asociados al Gasto
                                     </div>
                                     <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
                                       <Table>
                                         <TableHeader className="bg-muted/50">
                                           <TableRow className="hover:bg-transparent">
                                             <TableHead className="w-[50px] text-center"></TableHead>
-                                            <TableHead className="font-black text-[10px] uppercase py-3 pl-8">N° Gasto</TableHead>
-                                            <TableHead className="font-black text-[10px] uppercase text-center">N° Transporte</TableHead>
-                                            <TableHead className="text-right font-black text-[10px] uppercase pr-8">Monto Rubro</TableHead>
+                                            <TableHead className="font-black text-[10px] uppercase py-3 pl-8">N° Transporte</TableHead>
+                                            <TableHead className="font-black text-[10px] uppercase text-center">Referencia Factura</TableHead>
+                                            <TableHead className="text-right font-black text-[10px] uppercase pr-8">Monto Parcial</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -541,16 +543,16 @@ export default function DashboardPage() {
                                                 <Checkbox checked={selectedIds.has(item.id)} onCheckedChange={(checked) => handleSelectRow(item.id, !!checked)} />
                                               </TableCell>
                                               <TableCell className="py-4 pl-8">
-                                                <div className="flex items-center gap-2 font-bold text-gray-600"><ReceiptText className="h-4 w-4 opacity-50" />{item.numeroGasto || 'N/A'}</div>
+                                                <div className="flex items-center gap-2 font-bold text-gray-600"><ReceiptText className="h-4 w-4 opacity-50" />{item.transporte || 'N/A'}</div>
                                               </TableCell>
-                                              <TableCell className="text-center font-black text-primary text-base">{item.transporte || 'N/A'}</TableCell>
+                                              <TableCell className="text-center font-black text-primary text-base">{formatInvoice(item.numeroFactura)}</TableCell>
                                               <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">${item.valorTotal.toFixed(2)}</TableCell>
                                             </TableRow>
                                           ))}
                                         </TableBody>
                                         <tfoot className="bg-gray-50 border-t">
                                           <TableRow className="hover:bg-transparent">
-                                            <TableCell colSpan={3} className="text-right font-black text-[10px] uppercase tracking-widest py-3">Total de la Factura</TableCell>
+                                            <TableCell colSpan={3} className="text-right font-black text-[10px] uppercase tracking-widest py-3">Valor Total de la Factura</TableCell>
                                             <TableCell className="text-right pr-8 font-black text-xl text-primary tracking-tighter">
                                               ${grupo.valorTotalAcumulado.toFixed(2)}
                                             </TableCell>
@@ -574,7 +576,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between px-10 py-6 bg-gray-50 border-t border-gray-100">
                   <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
                     Página {currentPage} de {totalPages} 
-                    <span className="ml-4 opacity-60">(Mostrando {groupedRegistros.length} facturas filtradas)</span>
+                    <span className="ml-4 opacity-60">(Mostrando {groupedRegistros.length} gastos filtrados)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} className="h-10 px-4 font-black border-2"><ChevronLeft className="h-4 w-4 mr-2" /> ANTERIOR</Button>

@@ -24,7 +24,7 @@ interface RegistroFactura {
 }
 
 interface GrupoRegistro {
-  numeroRegistro: string;
+  numeroGasto: string;
   codigoProveedor: string;
   numeroFactura: string;
   fechaRegistro: string;
@@ -55,12 +55,12 @@ export default function ConsultaRegistrosPage() {
     }
   };
 
-  const toggleRow = (numeroRegistro: string) => {
+  const toggleRow = (numeroGasto: string) => {
     const next = new Set(expandedRows);
-    if (next.has(numeroRegistro)) {
-      next.delete(numeroRegistro);
+    if (next.has(numeroGasto)) {
+      next.delete(numeroGasto);
     } else {
-      next.add(numeroRegistro);
+      next.add(numeroGasto);
     }
     setExpandedRows(next);
   };
@@ -82,10 +82,10 @@ export default function ConsultaRegistrosPage() {
     const groups: Record<string, GrupoRegistro> = {};
     
     registros.forEach(reg => {
-      const key = reg.numeroRegistro;
+      const key = reg.numeroGasto || reg.numeroRegistro;
       if (!groups[key]) {
         groups[key] = {
-          numeroRegistro: key,
+          numeroGasto: key,
           codigoProveedor: reg.codigoProveedor,
           numeroFactura: reg.numeroFactura,
           fechaRegistro: reg.fechaRegistro,
@@ -106,7 +106,7 @@ export default function ConsultaRegistrosPage() {
 
     const term = searchTerm.toLowerCase();
     return list.filter(g => 
-      g.numeroRegistro.toLowerCase().includes(term) ||
+      g.numeroGasto.toLowerCase().includes(term) ||
       g.numeroFactura.toLowerCase().includes(term) ||
       g.codigoProveedor.toLowerCase().includes(term)
     );
@@ -116,13 +116,13 @@ export default function ConsultaRegistrosPage() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-l-8 border-primary pl-6 py-2">
         <div>
-          <h1 className="text-4xl font-black tracking-tighter text-primary uppercase">Consulta de Registros de Facturas</h1>
-          <p className="text-muted-foreground text-xl font-medium">Historial de facturas procesadas y vinculadas a transportes.</p>
+          <h1 className="text-4xl font-black tracking-tighter text-primary uppercase">Consulta de Registros de Gastos</h1>
+          <p className="text-muted-foreground text-xl font-medium">Historial detallado organizado por Número de Gasto de transporte.</p>
         </div>
         <div className="relative w-full md:w-96">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary/60" />
           <Input 
-            placeholder="BUSCAR POR REGISTRO, FACTURA O PROVEEDOR..." 
+            placeholder="BUSCAR POR GASTO, FACTURA O PROVEEDOR..." 
             className="pl-12 h-14 text-lg border-2 border-primary/20 rounded-2xl font-bold uppercase placeholder:text-muted-foreground/50 shadow-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -132,8 +132,8 @@ export default function ConsultaRegistrosPage() {
 
       <Card className="shadow-2xl border-none rounded-3xl overflow-hidden border-t-4 border-t-primary">
         <CardHeader className="bg-muted/30 px-8 py-6">
-          <CardTitle className="text-2xl font-black text-primary uppercase tracking-tight">Listado Maestro de Facturas</CardTitle>
-          <CardDescription className="text-base font-medium">Haga clic en el número de registro para desglosar sus transportes asociados.</CardDescription>
+          <CardTitle className="text-2xl font-black text-primary uppercase tracking-tight">Listado Maestro de Gastos</CardTitle>
+          <CardDescription className="text-base font-medium">Haga clic en el número de gasto para desglosar sus transportes asociados.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -147,7 +147,7 @@ export default function ConsultaRegistrosPage() {
                 <TableHeader className="bg-gray-50 border-b-2">
                   <TableRow>
                     <TableHead className="w-[40px]"></TableHead>
-                    <TableHead className="font-black text-xs uppercase tracking-widest text-gray-500 py-6">N° Registro Único</TableHead>
+                    <TableHead className="font-black text-xs uppercase tracking-widest text-gray-500 py-6">N° Gasto Transporte</TableHead>
                     <TableHead className="font-black text-xs uppercase tracking-widest text-gray-500">Proveedor</TableHead>
                     <TableHead className="font-black text-xs uppercase tracking-widest text-gray-500 text-center">Factura</TableHead>
                     <TableHead className="font-black text-xs uppercase tracking-widest text-gray-500 text-center">Fecha de Proceso</TableHead>
@@ -164,15 +164,15 @@ export default function ConsultaRegistrosPage() {
                     </TableRow>
                   ) : (
                     groupedRegistros.map((grupo) => {
-                      const isExpanded = expandedRows.has(grupo.numeroRegistro);
+                      const isExpanded = expandedRows.has(grupo.numeroGasto);
                       return (
-                        <React.Fragment key={grupo.numeroRegistro}>
+                        <React.Fragment key={grupo.numeroGasto}>
                           <TableRow 
                             className={cn(
                               "hover:bg-primary/5 transition-all cursor-pointer group",
                               isExpanded && "bg-primary/5"
                             )}
-                            onClick={() => toggleRow(grupo.numeroRegistro)}
+                            onClick={() => toggleRow(grupo.numeroGasto)}
                           >
                             <TableCell className="text-center">
                               {isExpanded ? (
@@ -187,7 +187,7 @@ export default function ConsultaRegistrosPage() {
                                   "w-1.5 h-8 bg-primary rounded-full transition-all duration-300",
                                   isExpanded ? "scale-y-125" : "group-hover:scale-y-110"
                                 )}></span>
-                                {grupo.numeroRegistro}
+                                {grupo.numeroGasto}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -238,9 +238,9 @@ export default function ConsultaRegistrosPage() {
                                     <Table>
                                       <TableHeader className="bg-muted/50">
                                         <TableRow className="hover:bg-transparent">
-                                          <TableHead className="font-black text-[10px] uppercase tracking-widest py-3 pl-8">N° Gasto</TableHead>
-                                          <TableHead className="font-black text-[10px] uppercase tracking-widest text-center">N° Transporte</TableHead>
-                                          <TableHead className="font-black text-[10px] uppercase tracking-widest text-right pr-8">Valor Parcial</TableHead>
+                                          <TableHead className="font-black text-[10px] uppercase tracking-widest py-3 pl-8">N° Transporte</TableHead>
+                                          <TableHead className="font-black text-[10px] uppercase text-center">Referencia Registro</TableHead>
+                                          <TableHead className="font-black text-[10px] uppercase text-right pr-8">Valor Parcial</TableHead>
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
@@ -249,11 +249,11 @@ export default function ConsultaRegistrosPage() {
                                             <TableCell className="py-4 pl-8">
                                               <div className="flex items-center gap-2 font-bold text-gray-600">
                                                 <ReceiptText className="h-4 w-4 opacity-50" />
-                                                {item.numeroGasto || 'N/A'}
+                                                {item.transporte || 'N/A'}
                                               </div>
                                             </TableCell>
                                             <TableCell className="text-center font-black text-primary text-base">
-                                              {item.transporte || 'N/A'}
+                                              {item.numeroRegistro || 'N/A'}
                                             </TableCell>
                                             <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">
                                               ${item.valorTotal.toFixed(2)}
@@ -263,7 +263,7 @@ export default function ConsultaRegistrosPage() {
                                       </TableBody>
                                       <tfoot className="bg-gray-50 border-t">
                                         <TableRow className="hover:bg-transparent">
-                                          <TableCell colSpan={2} className="text-right font-black text-[10px] uppercase tracking-widest py-3">Total del Registro</TableCell>
+                                          <TableCell colSpan={2} className="text-right font-black text-[10px] uppercase tracking-widest py-3">Total del Gasto</TableCell>
                                           <TableCell className="text-right pr-8 font-black text-xl text-primary tracking-tighter">
                                             ${grupo.valorTotalAcumulado.toFixed(2)}
                                           </TableCell>
