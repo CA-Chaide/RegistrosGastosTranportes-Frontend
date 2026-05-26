@@ -75,23 +75,24 @@ export default function DashboardPage() {
         const user = storedUser ? JSON.parse(storedUser) : null;
         const proveedorId = user?.usuario || user?.codigo_usuario || '';
 
+        // Recuperar registros usando el método getAll del servicio oficial
         const resp = await registroGastosTransporte.getAll();
         const rawData = resp.data || [];
         
         // Mapear los datos del servicio a nuestra interfaz interna
         const mappedData: RegistroFactura[] = rawData.map((item: any) => ({
-          id: String(item.id),
-          numeroRegistro: item.NumFactura, // Usamos factura como referencia base
-          codigoProveedor: item.AgenteTransporte,
-          numeroFactura: item.NumFactura,
+          id: String(item.id || crypto.randomUUID()),
+          numeroRegistro: item.NumFactura || 'N/A',
+          codigoProveedor: item.AgenteTransporte || '',
+          numeroFactura: item.NumFactura || '',
           valorTotal: parseFloat(item.ValorGasto || 0),
-          fechaRegistro: item.FechaRegistro,
-          estado: item.Estado === 'A' ? 'Procesado' : item.Estado,
-          numeroGasto: item.GastoTransporte,
-          transporte: item.Transporte
+          fechaRegistro: item.FechaRegistro || new Date().toISOString(),
+          estado: item.Estado === 'A' ? 'Procesado' : (item.Estado || 'Pendiente'),
+          numeroGasto: item.GastoTransporte || item.NumGasto || 'N/A',
+          transporte: item.Transporte || 'N/A'
         }));
 
-        // Si hay un proveedor logueado, filtramos sus registros
+        // Filtrar por el agente logueado si existe
         const filteredByAgent = proveedorId 
           ? mappedData.filter(r => String(r.codigoProveedor) === String(proveedorId))
           : mappedData;
@@ -160,7 +161,7 @@ export default function DashboardPage() {
     });
 
     baseFiltrada.forEach(reg => {
-      const key = reg.numeroFactura; // Agrupamos por número de factura
+      const key = reg.numeroFactura; 
       if (!groups[key]) {
         groups[key] = {
           keyFactura: key,
