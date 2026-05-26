@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText, X } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText, X, Hash } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
@@ -139,7 +140,7 @@ export default function DashboardPage() {
     });
 
     baseFiltrada.forEach(reg => {
-      const key = reg.numeroGasto || reg.numeroRegistro;
+      const key = reg.numeroRegistro || (reg as any).numeroGasto;
       if (!groups[key]) {
         groups[key] = {
           numeroGastoPrincipal: key,
@@ -214,15 +215,6 @@ export default function DashboardPage() {
     else next.delete(numeroGasto);
     setEntregadosFisicos(next);
     localStorage.setItem(FISICOS_STORAGE_KEY, JSON.stringify(Array.from(next)));
-    
-    if (checked && statusFilter === "PENDIENTE") {
-       const idsToRemove = registros.filter(r => (r.numeroGasto || r.numeroRegistro) === numeroGasto).map(r => r.id);
-       setSelectedIds(prev => {
-          const updated = new Set(prev);
-          idsToRemove.forEach(id => updated.delete(id));
-          return updated;
-       });
-    }
   };
 
   const itemsParaExportar = registros.filter(r => selectedIds.has(r.id));
@@ -231,7 +223,7 @@ export default function DashboardPage() {
     if (itemsParaExportar.length === 0) return;
     const doc = new jspdf();
     const groupedExport = itemsParaExportar.reduce((acc, item) => {
-      const key = item.numeroGasto || item.numeroRegistro;
+      const key = item.numeroRegistro || (item as any).numeroGasto;
       if (!acc[key]) acc[key] = [];
       acc[key].push(item);
       return acc;
@@ -251,7 +243,7 @@ export default function DashboardPage() {
       
       doc.setFontSize(10);
       doc.setTextColor(50);
-      doc.text(`N° GASTO TRANSPORTE: ${gId}`, 14, 32);
+      doc.text(`REFERENCIA DE REGISTRO: ${gId}`, 14, 32);
       doc.text(`N° FACTURA: ${formatInvoice(firstItem.numeroFactura)}`, 14, 38);
       doc.text(`CÓDIGO PROVEEDOR: ${firstItem.codigoProveedor}`, 14, 44);
       doc.text(`FECHA DE PROCESO: ${format(new Date(firstItem.fechaRegistro), "dd/MM/yyyy HH:mm")}`, 14, 50);
@@ -262,15 +254,15 @@ export default function DashboardPage() {
       doc.text(`ENTREGA FÍSICA: ${esFisico ? 'CONFIRMADA' : 'PENDIENTE'}`, 14, 58);
 
       const tableData = items.map(reg => [
-        reg.numeroGasto || 'N/A', 
         reg.transporte || 'N/A', 
+        reg.numeroGasto || (reg as any).GastoTransporte || (reg as any).Gasto || 'N/A',
         `$${reg.valorTotal.toFixed(2)}`,
         reg.estado
       ]);
 
       autoTable(doc, {
         startY: 64,
-        head: [['N° Gasto', 'N° Transporte', 'Monto del Rubro', 'Estado']],
+        head: [['N° Transporte', 'N° Gasto del Transporte', 'Monto del Rubro', 'Estado']],
         body: tableData,
         foot: [[{ content: 'VALOR TOTAL DE LA FACTURA', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: `$${totalFactura.toFixed(2)}`, styles: { halign: 'right', fontStyle: 'bold' } }, '']],
         headStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -292,12 +284,13 @@ export default function DashboardPage() {
     if (itemsParaExportar.length === 0) return;
     const data = itemsParaExportar.map(reg => ({
       'Fecha': format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
-      'N° Gasto': reg.numeroGasto || 'N/A',
+      'Referencia Registro': reg.numeroRegistro || 'N/A',
       'N° Factura': formatInvoice(reg.numeroFactura),
+      'N° Gasto': reg.numeroGasto || (reg as any).GastoTransporte || (reg as any).Gasto || 'N/A',
       'Transporte': reg.transporte || 'N/A',
       'Monto': reg.valorTotal,
       'Estado': reg.estado,
-      'Entregado Físico': entregadosFisicos.has(reg.numeroGasto || reg.numeroRegistro) ? 'SÍ' : 'NO'
+      'Entregado Físico': entregadosFisicos.has(reg.numeroRegistro || (reg as any).numeroGasto) ? 'SÍ' : 'NO'
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -313,9 +306,9 @@ export default function DashboardPage() {
 
   const anyFilterActive = invoiceFilter.trim() !== "" || statusFilter !== "PENDIENTE" || dateRange !== undefined;
 
-  const totalFacturasRegistradas = new Set(registros.map(r => r.numeroGasto || r.numeroRegistro)).size;
-  const totalFacturasProcesadas = new Set(registros.filter(r => entregadosFisicos.has(r.numeroGasto || r.numeroRegistro)).map(r => r.numeroGasto || r.numeroRegistro)).size;
-  const totalFacturasPendientesFisico = new Set(registros.filter(r => !entregadosFisicos.has(r.numeroGasto || r.numeroRegistro)).map(r => r.numeroGasto || r.numeroRegistro)).size;
+  const totalFacturasRegistradas = new Set(registros.map(r => r.numeroRegistro || (r as any).numeroGasto)).size;
+  const totalFacturasProcesadas = new Set(registros.filter(r => entregadosFisicos.has(r.numeroRegistro || (r as any).numeroGasto)).map(r => r.numeroRegistro || (r as any).numeroGasto)).size;
+  const totalFacturasPendientesFisico = new Set(registros.filter(r => !entregadosFisicos.has(r.numeroRegistro || (r as any).numeroGasto)).map(r => r.numeroRegistro || (r as any).numeroGasto)).size;
 
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-gray-50/50">
@@ -332,12 +325,12 @@ export default function DashboardPage() {
           onClick={() => setStatusFilter("TODOS")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-blue-600 transition-colors">Gastos Registrados</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-blue-600 transition-colors">Facturas Registradas</CardTitle>
             <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors"><Package className="h-5 w-5 text-blue-600" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-blue-700">{totalFacturasRegistradas}</div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver todos los gastos</p>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver todos los registros</p>
           </CardContent>
         </Card>
 
@@ -362,7 +355,7 @@ export default function DashboardPage() {
           onClick={() => setStatusFilter("ENTREGADO")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-green-600 transition-colors">Gastos Procesados</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-green-600 transition-colors">Facturas Procesadas</CardTitle>
             <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
           </CardHeader>
           <CardContent>
@@ -378,9 +371,9 @@ export default function DashboardPage() {
         <CardHeader className="bg-white border-b-2 border-gray-100 px-10 py-8">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div>
-              <CardTitle className="text-3xl font-black text-primary uppercase tracking-tighter">Detalles de Gastos</CardTitle>
+              <CardTitle className="text-3xl font-black text-primary uppercase tracking-tighter">Gestión de Entregas</CardTitle>
               <CardDescription className="font-semibold text-base mt-1 text-gray-500">
-                Visualización agrupada por número de gasto de transporte.
+                Visualización agrupada por Referencia de Registro.
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-4">
@@ -408,7 +401,7 @@ export default function DashboardPage() {
                 <SelectContent className="rounded-xl border-none shadow-2xl">
                   <SelectItem value="PENDIENTE" className="font-bold text-orange-600 uppercase">PENDIENTE FÍSICO</SelectItem>
                   <SelectItem value="ENTREGADO" className="font-bold text-green-600 uppercase">ENTREGADO FÍSICO</SelectItem>
-                  <SelectItem value="TODOS" className="font-bold">TODOS LOS GASTOS</SelectItem>
+                  <SelectItem value="TODOS" className="font-bold">TODOS LOS REGISTROS</SelectItem>
                 </SelectContent>
               </Select>
               <Popover>
@@ -457,15 +450,15 @@ export default function DashboardPage() {
                     <TableRow className="hover:bg-transparent border-b-2">
                       <TableHead className="w-[50px] py-6 px-4 text-center">
                         <Checkbox 
-                          checked={groupedRegistros.length > 0 && Array.from(selectedIds).length === registros.filter(r => groupedRegistros.some(g => g.numeroGastoPrincipal === (r.numeroGasto || r.numeroRegistro))).length}
+                          checked={groupedRegistros.length > 0 && Array.from(selectedIds).length === registros.filter(r => groupedRegistros.some(g => g.numeroGastoPrincipal === (r.numeroRegistro || (r as any).numeroGasto))).length}
                           onCheckedChange={handleSelectAll}
                         />
                       </TableHead>
                       <TableHead className="w-[40px]"></TableHead>
                       <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest py-6 px-4">Fecha Registro</TableHead>
-                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Gasto</TableHead>
                       <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
-                      <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto Gasto</TableHead>
+                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">Ref. Registro</TableHead>
+                      <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto Total</TableHead>
                       <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-6 tracking-widest">Físico</TableHead>
                       <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
                     </TableRow>
@@ -497,11 +490,11 @@ export default function DashboardPage() {
                                   <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">{format(new Date(grupo.fechaRegistro), "HH:mm 'HRS'")}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="font-black text-primary text-center tracking-tight" onClick={() => toggleRow(grupo.numeroGastoPrincipal)}>
-                                {grupo.numeroGastoPrincipal}
-                              </TableCell>
                               <TableCell className="text-center font-bold text-gray-600" onClick={() => toggleRow(grupo.numeroGastoPrincipal)}>
                                 {formatInvoice(grupo.numeroFactura)}
+                              </TableCell>
+                              <TableCell className="font-black text-primary text-center tracking-tight" onClick={() => toggleRow(grupo.numeroGastoPrincipal)}>
+                                {grupo.numeroGastoPrincipal}
                               </TableCell>
                               <TableCell className="text-right px-10" onClick={() => toggleRow(grupo.numeroGastoPrincipal)}>
                                 <span className="text-xl font-black text-primary tracking-tighter">${grupo.valorTotalAcumulado.toFixed(2)}</span>
@@ -532,23 +525,31 @@ export default function DashboardPage() {
                                           <TableRow className="hover:bg-transparent">
                                             <TableHead className="w-[50px] text-center"></TableHead>
                                             <TableHead className="font-black text-[10px] uppercase py-3 pl-8">N° Transporte</TableHead>
-                                            <TableHead className="font-black text-[10px] uppercase text-center">Referencia Factura</TableHead>
+                                            <TableHead className="font-black text-[10px] uppercase text-center">N° Gasto del Transporte</TableHead>
                                             <TableHead className="text-right font-black text-[10px] uppercase pr-8">Monto Parcial</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                          {grupo.items.map((item) => (
-                                            <TableRow key={item.id} className="hover:bg-primary/5 group/sub">
-                                              <TableCell className="text-center">
-                                                <Checkbox checked={selectedIds.has(item.id)} onCheckedChange={(checked) => handleSelectRow(item.id, !!checked)} />
-                                              </TableCell>
-                                              <TableCell className="py-4 pl-8">
-                                                <div className="flex items-center gap-2 font-bold text-gray-600"><ReceiptText className="h-4 w-4 opacity-50" />{item.transporte || 'N/A'}</div>
-                                              </TableCell>
-                                              <TableCell className="text-center font-black text-primary text-base">{formatInvoice(item.numeroFactura)}</TableCell>
-                                              <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">${item.valorTotal.toFixed(2)}</TableCell>
-                                            </TableRow>
-                                          ))}
+                                          {grupo.items.map((item) => {
+                                            const gastoValor = item.numeroGasto || (item as any).GastoTransporte || (item as any).Gasto || (item as any).NumGasto || 'N/A';
+                                            return (
+                                              <TableRow key={item.id} className="hover:bg-primary/5 group/sub">
+                                                <TableCell className="text-center">
+                                                  <Checkbox checked={selectedIds.has(item.id)} onCheckedChange={(checked) => handleSelectRow(item.id, !!checked)} />
+                                                </TableCell>
+                                                <TableCell className="py-4 pl-8">
+                                                  <div className="flex items-center gap-2 font-bold text-gray-600"><ReceiptText className="h-4 w-4 opacity-50" />{item.transporte || 'N/A'}</div>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                  <div className="inline-flex items-center gap-2 bg-muted/50 px-3 py-1 rounded-full font-black text-primary text-sm">
+                                                    <Hash className="h-3 w-3" />
+                                                    {gastoValor}
+                                                  </div>
+                                                </TableCell>
+                                                <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">${item.valorTotal.toFixed(2)}</TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
                                         </TableBody>
                                         <tfoot className="bg-gray-50 border-t">
                                           <TableRow className="hover:bg-transparent">
@@ -576,7 +577,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between px-10 py-6 bg-gray-50 border-t border-gray-100">
                   <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
                     Página {currentPage} de {totalPages} 
-                    <span className="ml-4 opacity-60">(Mostrando {groupedRegistros.length} gastos filtrados)</span>
+                    <span className="ml-4 opacity-60">(Mostrando {groupedRegistros.length} registros filtrados)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} className="h-10 px-4 font-black border-2"><ChevronLeft className="h-4 w-4 mr-2" /> ANTERIOR</Button>

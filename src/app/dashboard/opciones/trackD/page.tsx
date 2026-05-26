@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -83,7 +84,7 @@ export default function ConsultaRegistrosPage() {
     const groups: Record<string, GrupoRegistro> = {};
     
     registros.forEach(reg => {
-      const key = reg.numeroRegistro || reg.numeroGasto || reg.id;
+      const key = reg.numeroRegistro || (reg as any).numeroGasto || reg.id;
       if (!groups[key]) {
         groups[key] = {
           numeroGastoKey: key,
@@ -246,28 +247,31 @@ export default function ConsultaRegistrosPage() {
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
-                                        {grupo.items.map((item) => (
-                                          <TableRow key={item.id} className="hover:bg-primary/5 group/sub">
-                                            <TableCell className="py-4 pl-8">
-                                              <div className="flex items-center gap-2 font-bold text-gray-600">
-                                                <ReceiptText className="h-4 w-4 opacity-50 text-primary" />
-                                                {item.transporte || 'N/A'}
-                                              </div>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                              <div className="inline-flex items-center gap-2 bg-muted/50 px-3 py-1 rounded-full font-black text-primary text-sm">
-                                                <Hash className="h-3 w-3" />
-                                                {item.numeroGasto || 'N/A'}
-                                              </div>
-                                            </TableCell>
-                                            <TableCell className="text-right pr-8">
-                                               <div className="flex items-center justify-end gap-1 font-black text-lg tracking-tighter text-gray-900">
-                                                  <DollarSign className="h-4 w-4 opacity-30" />
-                                                  {item.valorTotal.toFixed(2)}
-                                               </div>
-                                            </TableCell>
-                                          </TableRow>
-                                        ))}
+                                        {grupo.items.map((item) => {
+                                          const gastoValor = item.numeroGasto || (item as any).GastoTransporte || (item as any).Gasto || (item as any).NumGasto || 'N/A';
+                                          return (
+                                            <TableRow key={item.id} className="hover:bg-primary/5 group/sub">
+                                              <TableCell className="py-4 pl-8">
+                                                <div className="flex items-center gap-2 font-bold text-gray-600">
+                                                  <ReceiptText className="h-4 w-4 opacity-50 text-primary" />
+                                                  {item.transporte || 'N/A'}
+                                                </div>
+                                              </TableCell>
+                                              <TableCell className="text-center">
+                                                <div className="inline-flex items-center gap-2 bg-muted/50 px-3 py-1 rounded-full font-black text-primary text-sm">
+                                                  <Hash className="h-3 w-3" />
+                                                  {gastoValor}
+                                                </div>
+                                              </TableCell>
+                                              <TableCell className="text-right pr-8">
+                                                 <div className="flex items-center justify-end gap-1 font-black text-lg tracking-tighter text-gray-900">
+                                                    <DollarSign className="h-4 w-4 opacity-30" />
+                                                    {item.valorTotal.toFixed(2)}
+                                                 </div>
+                                              </TableCell>
+                                            </TableRow>
+                                          );
+                                        })}
                                       </TableBody>
                                       <tfoot className="bg-gray-50 border-t-2">
                                         <TableRow className="hover:bg-transparent">
