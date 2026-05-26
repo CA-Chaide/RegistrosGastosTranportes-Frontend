@@ -220,31 +220,71 @@ export default function DashboardPage() {
   };
 
   const itemsParaExportar = registros.filter(r => selectedIds.has(r.id));
-  const totalMontoExportar = itemsParaExportar.reduce((acc, r) => acc + r.valorTotal, 0);
 
   const handleDownloadPDF = () => {
     if (itemsParaExportar.length === 0) return;
     const doc = new jspdf();
-    let dateStr = dateRange?.from ? (dateRange.to ? `Del ${format(dateRange.from, "dd/MM/yyyy")} al ${format(dateRange.to, "dd/MM/yyyy")}` : `Día ${format(dateRange.from, "dd/MM/yyyy")}`) : "Todos los registros";
-    doc.setFontSize(18);
-    doc.setTextColor(0, 85, 184);
-    doc.text('CHAIDE - REPORTE DE FACTURACIÓN SELECCIONADA', 14, 22);
-    doc.setFontSize(11);
-    doc.setTextColor(100);
-    doc.text(`Periodo: ${dateStr}`, 14, 30);
-    doc.text(`Items seleccionados: ${itemsParaExportar.length}`, 14, 36);
-    const tableData = itemsParaExportar.map(reg => [format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"), reg.numeroGasto || 'N/A', formatInvoice(reg.numeroFactura), reg.transporte || 'N/A', `$${reg.valorTotal.toFixed(2)}`, reg.estado, entregadosFisicos.has(reg.numeroRegistro) ? 'SÍ' : 'NO']);
-    autoTable(doc, {
-      startY: 42,
-      head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado', 'Físico']],
-      body: tableData,
-      foot: [[{ content: 'TOTAL DE SELECCIÓN', colSpan: 4, styles: { halign: 'right' } }, { content: `$${totalMontoExportar.toFixed(2)}`, styles: { halign: 'right' } }, '', '']],
-      headStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
-      footStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [240, 244, 248] },
-      styles: { fontSize: 9, cellPadding: 3 },
+    
+    // Agrupar los items seleccionados por numeroRegistro para generar páginas individuales
+    const groupedExport = itemsParaExportar.reduce((acc, item) => {
+      if (!acc[item.numeroRegistro]) acc[item.numeroRegistro] = [];
+      acc[item.numeroRegistro].push(item);
+      return acc;
+    }, {} as Record<string, RegistroFactura[]>);
+
+    const registroIds = Object.keys(groupedExport);
+
+    registroIds.forEach((regId, index) => {
+      if (index > 0) doc.addPage();
+      
+      const items = groupedExport[regId];
+      const firstItem = items[0];
+      const totalFactura = items.reduce((sum, i) => sum + i.valorTotal, 0);
+
+      // Encabezado de la página
+      doc.setFontSize(18);
+      doc.setTextColor(0, 85, 184);
+      doc.text('CHAIDE - DETALLE DE FACTURACIÓN', 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(50);
+      doc.text(`N° REGISTRO ÚNICO: ${regId}`, 14, 32);
+      doc.text(`N° FACTURA: ${formatInvoice(firstItem.numeroFactura)}`, 14, 38);
+      doc.text(`CÓDIGO PROVEEDOR: ${firstItem.codigoProveedor}`, 14, 44);
+      doc.text(`FECHA DE PROCESO: ${format(new Date(firstItem.fechaRegistro), "dd/MM/yyyy HH:mm")}`, 14, 50);
+      
+      const esFisico = entregadosFisicos.has(regId);
+      doc.setFontSize(11);
+      doc.setTextColor(esFisico ? 22 : 220, esFisico ? 163 : 38, esFisico ? 74 : 38);
+      doc.text(`ENTREGA FÍSICA: ${esFisico ? 'CONFIRMADA' : 'PENDIENTE'}`, 14, 58);
+
+      // Tabla de transportes para esta factura
+      const tableData = items.map(reg => [
+        reg.numeroGasto || 'N/A', 
+        reg.transporte || 'N/A', 
+        `$${reg.valorTotal.toFixed(2)}`,
+        reg.estado
+      ]);
+
+      autoTable(doc, {
+        startY: 64,
+        head: [['N° Gasto', 'N° Transporte', 'Monto del Rubro', 'Estado']],
+        body: tableData,
+        foot: [[{ content: 'VALOR TOTAL DE LA FACTURA', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: `$${totalFactura.toFixed(2)}`, styles: { halign: 'right', fontStyle: 'bold' } }, '']],
+        headStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
+        footStyles: { fillColor: [240, 244, 248], textColor: [0, 85, 184], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
+        styles: { fontSize: 10, cellPadding: 5 },
+        margin: { top: 64 },
+      });
+
+      // Pie de página
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text(`Página ${index + 1} de ${registroIds.length} - Generado por Chaide RGT v1.0`, 14, doc.internal.pageSize.height - 10);
     });
-    doc.save(`Reporte_Facturacion_Seleccionada_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
+
+    doc.save(`Reporte_Facturas_Individuales_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
   };
 
   const handleDownloadExcel = () => {
