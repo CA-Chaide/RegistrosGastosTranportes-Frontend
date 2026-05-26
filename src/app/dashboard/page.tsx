@@ -46,6 +46,7 @@ export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [entregadosFisicos, setEntregadosFisicos] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("TODOS");
   
@@ -143,6 +144,13 @@ export default function DashboardPage() {
     setSelectedIds(next);
   };
 
+  const handleToggleEntregado = (id: string, checked: boolean) => {
+    const next = new Set(entregadosFisicos);
+    if (checked) next.add(id);
+    else next.delete(id);
+    setEntregadosFisicos(next);
+  };
+
   const itemsParaExportar = registrosFiltrados.filter(r => selectedIds.has(r.id));
   const totalMontoExportar = itemsParaExportar.reduce((acc, r) => acc + r.valorTotal, 0);
 
@@ -180,16 +188,18 @@ export default function DashboardPage() {
       formatInvoice(reg.numeroFactura),
       reg.transporte || 'N/A',
       `$${reg.valorTotal.toFixed(2)}`,
-      reg.estado
+      reg.estado,
+      entregadosFisicos.has(reg.id) ? 'SÍ' : 'NO'
     ]);
 
     autoTable(doc, {
       startY: statusFilter !== "TODOS" ? 48 : 42,
-      head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado']],
+      head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado', 'Físico']],
       body: tableData,
       foot: [[
         { content: 'TOTAL DE SELECCIÓN', colSpan: 4, styles: { halign: 'right' } },
         { content: `$${totalMontoExportar.toFixed(2)}`, styles: { halign: 'right' } },
+        '',
         ''
       ]],
       headStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -222,16 +232,17 @@ export default function DashboardPage() {
       'N° Factura': formatInvoice(reg.numeroFactura),
       'Transporte': reg.transporte || 'N/A',
       'Monto': reg.valorTotal,
-      'Estado': reg.estado
+      'Estado': reg.estado,
+      'Entregado Físico': entregadosFisicos.has(reg.id) ? 'SÍ' : 'NO'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Facturación");
     
-    // Auto-ajustar anchos de columna (opcional pero recomendado)
+    // Auto-ajustar anchos de columna
     const max_width = data.reduce((w, r) => Math.max(w, r['N° Factura'].length), 15);
-    worksheet["!cols"] = [{ wch: 20 }, { wch: 15 }, { wch: max_width }, { wch: 15 }, { wch: 12 }, { wch: 15 }];
+    worksheet["!cols"] = [{ wch: 20 }, { wch: 15 }, { wch: max_width }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 15 }];
 
     XLSX.writeFile(workbook, `Reporte_Facturacion_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
   };
@@ -424,12 +435,13 @@ export default function DashboardPage() {
                       <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">Transporte</TableHead>
                       <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto</TableHead>
                       <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
+                      <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-6 tracking-widest">Físico</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pagedRegistros.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-24 text-muted-foreground italic font-bold text-lg">
+                        <TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">
                           No se encontraron registros para el rango o estado seleccionado.
                         </TableCell>
                       </TableRow>
@@ -477,6 +489,14 @@ export default function DashboardPage() {
                             )}>
                               {item.estado}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-center px-6">
+                            <Checkbox 
+                              checked={entregadosFisicos.has(item.id)}
+                              onCheckedChange={(checked) => handleToggleEntregado(item.id, !!checked)}
+                              aria-label={`Validar entrega física del gasto ${item.numeroGasto}`}
+                              className="border-2 border-primary/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            />
                           </TableCell>
                         </TableRow>
                       ))
