@@ -62,7 +62,6 @@ export default function DashboardPage() {
   const [entregadosFisicos, setEntregadosFisicos] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  // Por defecto ahora es PENDIENTE para que solo se vean las que no tienen check
   const [statusFilter, setStatusFilter] = useState<string>("PENDIENTE");
   const [invoiceFilter, setInvoiceFilter] = useState<string>("");
   
@@ -213,7 +212,6 @@ export default function DashboardPage() {
     setEntregadosFisicos(next);
     localStorage.setItem(FISICOS_STORAGE_KEY, JSON.stringify(Array.from(next)));
     
-    // Al quitarse de la vista, si estaba seleccionada para exportar, la deseleccionamos
     if (checked && statusFilter === "PENDIENTE") {
        const idsToRemove = registros.filter(r => r.numeroRegistro === numeroRegistro).map(r => r.id);
        setSelectedIds(prev => {
@@ -305,14 +303,14 @@ export default function DashboardPage() {
 
   const handleClearFilter = () => {
     setDateRange(undefined);
-    setStatusFilter("PENDIENTE"); // Al limpiar filtros volvemos a mostrar las pendientes por defecto
+    setStatusFilter("PENDIENTE");
     setInvoiceFilter("");
   };
 
   const anyFilterActive = invoiceFilter.trim() !== "" || statusFilter !== "PENDIENTE" || dateRange !== undefined;
 
   const totalFacturasRegistradas = new Set(registros.map(r => r.numeroRegistro)).size;
-  const totalFacturasProcesadas = new Set(registros.filter(r => r.estado.toUpperCase() === 'PROCESADO').map(r => r.numeroRegistro)).size;
+  const totalFacturasProcesadas = new Set(registros.filter(r => entregadosFisicos.has(r.numeroRegistro)).map(r => r.numeroRegistro)).size;
   const totalFacturasPendientesFisico = new Set(registros.filter(r => !entregadosFisicos.has(r.numeroRegistro)).map(r => r.numeroRegistro)).size;
 
   return (
@@ -325,40 +323,49 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <Card className="border-l-8 border-l-blue-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
+        <Card 
+          className="border-l-8 border-l-blue-600 shadow-lg hover:shadow-xl transition-all border-y-0 border-r-0 cursor-pointer active:scale-95 group"
+          onClick={() => setStatusFilter("TODOS")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Facturas Registradas</CardTitle>
-            <div className="p-2 bg-blue-100 rounded-lg"><Package className="h-5 w-5 text-blue-600" /></div>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-blue-600 transition-colors">Facturas Registradas</CardTitle>
+            <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors"><Package className="h-5 w-5 text-blue-600" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-blue-700">{totalFacturasRegistradas}</div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas ingresadas en el sistema</p>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver todos los registros</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-8 border-l-orange-500 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
+        <Card 
+          className="border-l-8 border-l-orange-500 shadow-lg hover:shadow-xl transition-all border-y-0 border-r-0 cursor-pointer active:scale-95 group"
+          onClick={() => setStatusFilter("PENDIENTE")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Pendientes</CardTitle>
-            <div className="p-2 bg-orange-100 rounded-lg"><Clock className="h-5 w-5 text-orange-500" /></div>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-orange-600 transition-colors">Pendientes</CardTitle>
+            <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors"><Clock className="h-5 w-5 text-orange-500" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-orange-600">
                {totalFacturasPendientesFisico}
             </div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas por liquidar físicamente</p>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver pendientes físicos</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-8 border-l-green-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
+        <Card 
+          className="border-l-8 border-l-green-600 shadow-lg hover:shadow-xl transition-all border-y-0 border-r-0 cursor-pointer active:scale-95 group"
+          onClick={() => setStatusFilter("ENTREGADO")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Facturas Procesadas</CardTitle>
-            <div className="p-2 bg-green-100 rounded-lg"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-green-600 transition-colors">Facturas Procesadas</CardTitle>
+            <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-green-700">
               {totalFacturasProcesadas}
             </div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas validadas exitosamente</p>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver entregas físicas</p>
           </CardContent>
         </Card>
       </div>
