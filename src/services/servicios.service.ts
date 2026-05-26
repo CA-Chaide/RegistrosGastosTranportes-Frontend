@@ -5,7 +5,6 @@ import { environment } from "@/environments/environments.prod";
 import { registroGastosTransporte } from './registroGastosTransporte.service';
 
 const API_URL = `${environment.apiURL_RGT}/api/servicios`;
-const STORAGE_KEY = 'RGT_LOCAL_REGISTROS';
 
 export const serviciosService = {
 
@@ -90,27 +89,8 @@ export const serviciosService = {
   },
 
   /**
-   * Obtiene el historial de registros combinando datos locales y remotos.
-   */
-  async getRegistrosFacturas(codigoProveedor?: string): Promise<BodyListResponse<any>> {
-    const response = await fetch(`${API_URL}/listarRegistros${codigoProveedor ? `?codigoProveedor=${codigoProveedor}` : ''}`, {
-      cache: 'no-store'
-    }).catch(() => null);
-    
-    let remoteData = [];
-    if (response && response.ok) {
-      const json = await response.json();
-      remoteData = json.data || [];
-    }
-
-    return {
-      data: remoteData,
-      size: remoteData.length
-    };
-  },
-
-  /**
    * Obtiene información detallada de gastos de transporte según filtros de negocio.
+   * Entrada: { estado, fecha_inicio, fecha_fin, agente_transporte }
    */
   async getInformacionGastosTransportes(estado: string, fecha_inicio: string, fecha_fin: string, agente_transporte: string): Promise<BodyListResponse<any>> {
     const response = await fetch(API_URL + '/getDashboardByInfo', {

@@ -1,15 +1,15 @@
 
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { registroGastosTransporte } from '@/services/registroGastosTransporte.service';
+import { serviciosService } from '@/services/servicios.service';
 import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText, X, Hash } from 'lucide-react';
-import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -39,8 +39,8 @@ interface RegistroFactura {
   valorTotal: number;
   fechaRegistro: string;
   estado: string;
-  numeroGasto?: string;
-  transporte?: string;
+  numeroGasto: string;
+  transporte: string;
 }
 
 interface GrupoDashboard {
@@ -65,53 +65,68 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>("PENDIENTE");
   const [invoiceFilter, setInvoiceFilter] = useState<string>("");
   
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 30),
+    to: new Date(),
+  });
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const proveedorId = user?.usuario || user?.codigo_usuario || '';
+
+      if (!proveedorId) {
+        setLoading(false);
+        return;
+      }
+
+      // Parámetros para el servicio getDashboardByInfo
+      const fechaInicioStr = dateRange?.from ? format(startOfDay(dateRange.from), 'yyyy-MM-dd') : '2000-01-01';
+      const fechaFinStr = dateRange?.to ? format(endOfDay(dateRange.to), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+
+      const resp = await serviciosService.getInformacionGastosTransportes(
+        'A', // O el estado que se requiera
+        fechaInicioStr,
+        fechaFinStr,
+        String(proveedorId)
+      );
+
+      const rawData = resp.data || [];
+      
+      const mappedData: RegistroFactura[] = rawData.map((item: any, idx: number) => ({
+        id: String(item.id || idx),
+        numeroRegistro: item.NumFactura || 'N/A',
+        codigoProveedor: String(proveedorId),
+        numeroFactura: item.NumFactura || '',
+        valorTotal: parseFloat(item.ValorGasto || item.valor || 0),
+        fechaRegistro: item.FechaRegistro || new Date().toISOString(),
+        estado: item.Estado || 'A',
+        numeroGasto: item.GastoTransporte || item.NumGasto || 'N/A',
+        transporte: item.Transporte || 'N/A'
+      }));
+
+      setRegistros(mappedData);
+
+      const storedFisicos = localStorage.getItem(FISICOS_STORAGE_KEY);
+      if (storedFisicos) {
+        try {
+          setEntregadosFisicos(new Set(JSON.parse(storedFisicos)));
+        } catch (e) {
+          console.error("Error parsing fisicos storage", e);
+        }
+      }
+    } catch (error) {
+      console.error("Error cargando dashboard:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [dateRange]);
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const storedUser = localStorage.getItem('user');
-        const user = storedUser ? JSON.parse(storedUser) : null;
-        const proveedorId = user?.usuario || user?.codigo_usuario || '';
-
-        const resp = await registroGastosTransporte.getAll();
-        const rawData = resp.data || [];
-        
-        const mappedData: RegistroFactura[] = rawData.map((item: any) => ({
-          id: String(item.id || crypto.randomUUID()),
-          numeroRegistro: item.NumFactura || 'N/A',
-          codigoProveedor: item.AgenteTransporte || '',
-          numeroFactura: item.NumFactura || '',
-          valorTotal: parseFloat(item.ValorGasto || item.valor || 0),
-          fechaRegistro: item.FechaRegistro || new Date().toISOString(),
-          estado: item.Estado === 'A' ? 'Procesado' : (item.Estado || 'Pendiente'),
-          numeroGasto: item.GastoTransporte || item.NumGasto || item.transporte || 'N/A',
-          transporte: item.Transporte || item.transporte || 'N/A'
-        }));
-
-        const filteredByAgent = proveedorId 
-          ? mappedData.filter(r => String(r.codigoProveedor) === String(proveedorId))
-          : mappedData;
-
-        setRegistros(filteredByAgent);
-
-        const storedFisicos = localStorage.getItem(FISICOS_STORAGE_KEY);
-        if (storedFisicos) {
-          try {
-            setEntregadosFisicos(new Set(JSON.parse(storedFisicos)));
-          } catch (e) {
-            console.error("Error parsing fisicos storage", e);
-          }
-        }
-      } catch (error) {
-        console.error("Error cargando dashboard:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadData();
-  }, []);
+  }, [loadData]);
 
   const formatInvoice = (val: string) => {
     if (!val) return 'N/A';
@@ -140,21 +155,12 @@ export default function DashboardPage() {
     const groups: Record<string, GrupoDashboard> = {};
     
     const baseFiltrada = registros.filter(reg => {
-      let matchesDate = true;
-      if (dateRange?.from) {
-        const fechaReg = new Date(reg.fechaRegistro);
-        const start = startOfDay(dateRange.from);
-        const end = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
-        matchesDate = isWithinInterval(fechaReg, { start, end });
-      }
-
       let matchesInvoice = true;
       if (invoiceFilter.trim()) {
         const cleanInvoice = invoiceFilter.toLowerCase().replace(/-/g, '');
         matchesInvoice = reg.numeroFactura.toLowerCase().includes(cleanInvoice);
       }
-
-      return matchesDate && matchesInvoice;
+      return matchesInvoice;
     });
 
     baseFiltrada.forEach(reg => {
@@ -180,7 +186,7 @@ export default function DashboardPage() {
       if (statusFilter === "PENDIENTE") return !isEntregado;
       return true;
     }).sort((a, b) => new Date(b.fechaRegistro).getTime() - new Date(a.fechaRegistro).getTime());
-  }, [registros, dateRange, statusFilter, invoiceFilter, entregadosFisicos]);
+  }, [registros, statusFilter, invoiceFilter, entregadosFisicos]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -307,12 +313,12 @@ export default function DashboardPage() {
   };
 
   const handleClearFilter = () => {
-    setDateRange(undefined);
+    setDateRange({ from: subDays(new Date(), 30), to: new Date() });
     setStatusFilter("PENDIENTE");
     setInvoiceFilter("");
   };
 
-  const anyFilterActive = invoiceFilter.trim() !== "" || statusFilter !== "PENDIENTE" || dateRange !== undefined;
+  const anyFilterActive = invoiceFilter.trim() !== "" || statusFilter !== "PENDIENTE";
 
   const totalFacturasRegistradas = new Set(registros.map(r => r.numeroFactura)).size;
   const totalFacturasProcesadas = new Set(registros.filter(r => entregadosFisicos.has(r.numeroFactura)).map(r => r.numeroFactura)).size;
@@ -511,7 +517,7 @@ export default function DashboardPage() {
                                 />
                               </TableCell>
                               <TableCell className="text-center px-10" onClick={() => toggleRow(grupo.keyFactura)}>
-                                <Badge className={cn("px-4 py-1 font-black uppercase text-[9px] tracking-widest", grupo.estado.toUpperCase() === 'PROCESADO' || grupo.estado.toUpperCase() === 'A' ? "bg-green-600" : "bg-orange-500")}>
+                                <Badge className={cn("px-4 py-1 font-black uppercase text-[9px] tracking-widest", grupo.estado.toUpperCase() === 'TRANSFERIDO' || grupo.estado.toUpperCase() === 'A' ? "bg-green-600" : "bg-orange-500")}>
                                   {grupo.estado}
                                 </Badge>
                               </TableCell>
