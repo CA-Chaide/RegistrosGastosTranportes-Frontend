@@ -155,6 +155,25 @@ export const serviciosService = {
       data: combined,
       size: combined.length
     };
-  }
+  },
+
+
+  async getInformacionGastosTransportes(estado: string, fecha_inicio: string, fecha_fin: string, agente_transporte: string): Promise<BodyListResponse<any>> {
+    const response = await fetch(API_URL + '/getDashboardByInfo', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      body: JSON.stringify({ estado: estado, fecha_inicio: fecha_inicio, fecha_fin: fecha_fin, agente_transporte: agente_transporte }),
+      cache: 'no-store'
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Error desconocido' }));
+      throw new Error(errorBody.message || 'Error al consultar la factura');
+    }
+    return response.json();
+  },
+
 
 };

@@ -1,0 +1,41 @@
+
+import type { MenuTipoUsuario } from "@/types/interfaces";
+import type { BodyListResponse } from "@/types/body-list-response";
+import type { BodyResponse } from "@/types/body-response";
+import { environment } from "@/environments/environments.prod";
+
+const API_URL = `${environment.apiURL}/api/RegistrosGastosTransporte`;
+
+export const registroGastosTransporte = {
+  async getAll(): Promise<BodyListResponse<MenuTipoUsuario>> {
+    const response = await fetch(API_URL);
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Error desconocido' }));
+      throw new Error(errorBody.message || 'Failed to fetch menu-tipo-usuario');
+    }
+    return response.json();
+  },
+
+  async getById(id: number | string): Promise<BodyResponse<MenuTipoUsuario>> {
+    const response = await fetch(`${API_URL}/${id}`);
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Error desconocido' }));
+      throw new Error(errorBody.message || `Failed to fetch menu-tipo-usuario with id ${id}`);
+    }
+    return response.json();
+  },
+  
+  async save(data: MenuTipoUsuario): Promise<BodyResponse<MenuTipoUsuario>> {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Error desconocido' }));
+      throw new Error(errorBody.message || 'Failed to save menu-tipo-usuario');
+    }
+    return response.json();
+  },
+
+};

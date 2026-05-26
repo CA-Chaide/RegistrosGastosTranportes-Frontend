@@ -105,3 +105,10 @@ export interface User {
   correo_usuario: string;
   condicion: string;
 }
+
+export interface RegistroGastosTransporte {
+  id: number;
+  AgenteTransporte: string;
+  Nu
+}
+}

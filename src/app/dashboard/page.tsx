@@ -53,6 +53,8 @@ interface GrupoDashboard {
   items: RegistroFactura[];
 }
 
+const FISICOS_STORAGE_KEY = 'RGT_ENTREGADOS_FISICOS';
+
 export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,7 @@ export default function DashboardPage() {
   const [entregadosFisicos, setEntregadosFisicos] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string>("PENDIENTE");
+  const [statusFilter, setStatusFilter] = useState<string>("TODOS");
   const [invoiceFilter, setInvoiceFilter] = useState<string>("");
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -74,6 +76,16 @@ export default function DashboardPage() {
       try {
         const resp = await serviciosService.getRegistrosFacturas();
         setRegistros(resp.data || []);
+
+        // Cargar estados físicos de localStorage
+        const storedFisicos = localStorage.getItem(FISICOS_STORAGE_KEY);
+        if (storedFisicos) {
+          try {
+            setEntregadosFisicos(new Set(JSON.parse(storedFisicos)));
+          } catch (e) {
+            console.error("Error parsing fisicos storage", e);
+          }
+        }
       } catch (error) {
         console.error("Error cargando dashboard:", error);
       } finally {
@@ -202,6 +214,9 @@ export default function DashboardPage() {
     if (checked) next.add(numeroRegistro);
     else next.delete(numeroRegistro);
     setEntregadosFisicos(next);
+    
+    // Persistencia en localStorage
+    localStorage.setItem(FISICOS_STORAGE_KEY, JSON.stringify(Array.from(next)));
   };
 
   const itemsParaExportar = registros.filter(r => selectedIds.has(r.id));
@@ -251,14 +266,14 @@ export default function DashboardPage() {
 
   const handleClearFilter = () => {
     setDateRange(undefined);
-    setStatusFilter("PENDIENTE");
+    setStatusFilter("TODOS");
     setInvoiceFilter("");
   };
 
   // Cálculo de indicadores por facturas únicas
   const totalFacturasRegistradas = new Set(registros.map(r => r.numeroRegistro)).size;
   const totalFacturasProcesadas = new Set(registros.filter(r => r.estado.toUpperCase() === 'PROCESADO').map(r => r.numeroRegistro)).size;
-  const totalFacturasPendientesFisico = groupedRegistros.filter(g => !entregadosFisicos.has(g.numeroRegistro)).length;
+  const totalFacturasPendientesFisico = new Set(registros.filter(r => !entregadosFisicos.has(r.numeroRegistro)).map(r => r.numeroRegistro)).size;
 
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-gray-50/50">
