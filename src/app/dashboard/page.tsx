@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Ahora guardamos numeroRegistro en lugar de ID de item individual
   const [entregadosFisicos, setEntregadosFisicos] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
@@ -109,7 +110,6 @@ export default function DashboardPage() {
   const groupedRegistros = useMemo(() => {
     const groups: Record<string, GrupoDashboard> = {};
     
-    // Primero filtramos los registros base por fecha e invoice
     const baseFiltrada = registros.filter(reg => {
       let matchesDate = true;
       if (dateRange?.from) {
@@ -128,7 +128,6 @@ export default function DashboardPage() {
       return matchesDate && matchesInvoice;
     });
 
-    // Agrupamos
     baseFiltrada.forEach(reg => {
       const key = reg.numeroRegistro;
       if (!groups[key]) {
@@ -146,24 +145,10 @@ export default function DashboardPage() {
       groups[key].valorTotalAcumulado += reg.valorTotal;
     });
 
-    // Ahora filtramos los grupos según el estado FÍSICO
     return Object.values(groups).filter(grupo => {
-      const itemsFiltradosFisico = grupo.items.filter(item => {
-        if (statusFilter === "ENTREGADO") {
-          return entregadosFisicos.has(item.id);
-        } else if (statusFilter === "PENDIENTE") {
-          return !entregadosFisicos.has(item.id);
-        }
-        return true;
-      });
-
-      // Si el grupo no tiene items que cumplan el filtro físico, se oculta el grupo entero
-      if (itemsFiltradosFisico.length === 0) return false;
-
-      // Actualizamos el grupo para que solo muestre los items que cumplen el filtro
-      grupo.items = itemsFiltradosFisico;
-      grupo.valorTotalAcumulado = itemsFiltradosFisico.reduce((acc, i) => acc + i.valorTotal, 0);
-      
+      const isEntregado = entregadosFisicos.has(grupo.numeroRegistro);
+      if (statusFilter === "ENTREGADO") return isEntregado;
+      if (statusFilter === "PENDIENTE") return !isEntregado;
       return true;
     }).sort((a, b) => new Date(b.fechaRegistro).getTime() - new Date(a.fechaRegistro).getTime());
   }, [registros, dateRange, statusFilter, invoiceFilter, entregadosFisicos]);
@@ -213,10 +198,10 @@ export default function DashboardPage() {
     setSelectedIds(next);
   };
 
-  const handleToggleEntregado = (id: string, checked: boolean) => {
+  const handleToggleEntregado = (numeroRegistro: string, checked: boolean) => {
     const next = new Set(entregadosFisicos);
-    if (checked) next.add(id);
-    else next.delete(id);
+    if (checked) next.add(numeroRegistro);
+    else next.delete(numeroRegistro);
     setEntregadosFisicos(next);
   };
 
@@ -234,7 +219,7 @@ export default function DashboardPage() {
     doc.setTextColor(100);
     doc.text(`Periodo: ${dateStr}`, 14, 30);
     doc.text(`Items seleccionados: ${itemsParaExportar.length}`, 14, 36);
-    const tableData = itemsParaExportar.map(reg => [format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"), reg.numeroGasto || 'N/A', formatInvoice(reg.numeroFactura), reg.transporte || 'N/A', `$${reg.valorTotal.toFixed(2)}`, reg.estado, entregadosFisicos.has(reg.id) ? 'SÍ' : 'NO']);
+    const tableData = itemsParaExportar.map(reg => [format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"), reg.numeroGasto || 'N/A', formatInvoice(reg.numeroFactura), reg.transporte || 'N/A', `$${reg.valorTotal.toFixed(2)}`, reg.estado, entregadosFisicos.has(reg.numeroRegistro) ? 'SÍ' : 'NO']);
     autoTable(doc, {
       startY: 42,
       head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado', 'Físico']],
@@ -257,7 +242,7 @@ export default function DashboardPage() {
       'Transporte': reg.transporte || 'N/A',
       'Monto': reg.valorTotal,
       'Estado': reg.estado,
-      'Entregado Físico': entregadosFisicos.has(reg.id) ? 'SÍ' : 'NO'
+      'Entregado Físico': entregadosFisicos.has(reg.numeroRegistro) ? 'SÍ' : 'NO'
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -299,9 +284,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-orange-600">
-               {registros.filter(r => !entregadosFisicos.has(r.id)).length}
+               {groupedRegistros.filter(g => !entregadosFisicos.has(g.numeroRegistro)).length}
             </div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Gastos por liquidar físicamente</p>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Facturas por liquidar físicamente</p>
           </CardContent>
         </Card>
 
@@ -392,16 +377,19 @@ export default function DashboardPage() {
                       <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
                       <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">Proveedor</TableHead>
                       <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto Total</TableHead>
+                      <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-6 tracking-widest">Físico</TableHead>
                       <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pagedGroups.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No se encontraron registros.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No se encontraron registros.</TableCell></TableRow>
                     ) : (
                       pagedGroups.map((grupo) => {
                         const isExpanded = expandedRows.has(grupo.numeroRegistro);
                         const groupAllSelected = grupo.items.every(i => selectedIds.has(i.id));
+                        const isFisicoEntregado = entregadosFisicos.has(grupo.numeroRegistro);
+                        
                         return (
                           <React.Fragment key={grupo.numeroRegistro}>
                             <TableRow className={cn("hover:bg-primary/5 transition-all border-b border-gray-100 group cursor-pointer", isExpanded && "bg-primary/5")}>
@@ -429,6 +417,13 @@ export default function DashboardPage() {
                               <TableCell className="text-right px-10" onClick={() => toggleRow(grupo.numeroRegistro)}>
                                 <span className="text-xl font-black text-primary tracking-tighter">${grupo.valorTotalAcumulado.toFixed(2)}</span>
                               </TableCell>
+                              <TableCell className="text-center px-6" onClick={(e) => e.stopPropagation()}>
+                                <Checkbox 
+                                  checked={isFisicoEntregado} 
+                                  onCheckedChange={(checked) => handleToggleEntregado(grupo.numeroRegistro, !!checked)}
+                                  className="border-2 border-primary/50 data-[state=checked]:bg-primary h-6 w-6"
+                                />
+                              </TableCell>
                               <TableCell className="text-center px-10" onClick={() => toggleRow(grupo.numeroRegistro)}>
                                 <Badge className={cn("px-4 py-1 font-black uppercase text-[9px] tracking-widest", grupo.estado.toUpperCase() === 'PROCESADO' ? "bg-green-600" : "bg-orange-500")}>
                                   {grupo.estado}
@@ -437,10 +432,10 @@ export default function DashboardPage() {
                             </TableRow>
                             {isExpanded && (
                               <TableRow className="bg-muted/30 border-l-4 border-l-primary animate-in fade-in duration-300">
-                                <TableCell colSpan={7} className="p-0">
+                                <TableCell colSpan={8} className="p-0">
                                   <div className="p-6">
                                     <div className="flex items-center gap-2 mb-4 text-primary font-black uppercase text-xs tracking-widest">
-                                      <Package className="h-4 w-4" /> Desglose de Transportes y Gastos
+                                      <Package className="h-4 w-4" /> Desglose de Transportes y Gastos vinculados a la factura
                                     </div>
                                     <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
                                       <Table>
@@ -450,7 +445,6 @@ export default function DashboardPage() {
                                             <TableHead className="font-black text-[10px] uppercase py-3 pl-8">N° Gasto</TableHead>
                                             <TableHead className="font-black text-[10px] uppercase text-center">N° Transporte</TableHead>
                                             <TableHead className="text-right font-black text-[10px] uppercase pr-8">Monto Rubro</TableHead>
-                                            <TableHead className="text-center font-black text-[10px] uppercase w-[100px]">Físico</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -464,13 +458,6 @@ export default function DashboardPage() {
                                               </TableCell>
                                               <TableCell className="text-center font-black text-primary text-base">{item.transporte || 'N/A'}</TableCell>
                                               <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">${item.valorTotal.toFixed(2)}</TableCell>
-                                              <TableCell className="text-center">
-                                                <Checkbox 
-                                                  checked={entregadosFisicos.has(item.id)} 
-                                                  onCheckedChange={(checked) => handleToggleEntregado(item.id, !!checked)}
-                                                  className="border-2 border-primary/50 data-[state=checked]:bg-primary"
-                                                />
-                                              </TableCell>
                                             </TableRow>
                                           ))}
                                         </TableBody>
