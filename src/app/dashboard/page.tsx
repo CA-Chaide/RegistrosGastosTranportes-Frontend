@@ -311,15 +311,6 @@ export default function DashboardPage() {
           <h2 className="text-4xl font-black tracking-tighter text-primary uppercase">Panel de Control Operativo</h2>
           <p className="text-muted-foreground font-medium text-lg">Resumen detallado de facturación y transportes registrados.</p>
         </div>
-        {anyFilterActive && (
-          <Button 
-            variant="destructive" 
-            onClick={handleClearFilter}
-            className="h-12 font-black uppercase tracking-widest shadow-lg animate-in zoom-in-95 duration-200"
-          >
-            <RotateCcw className="mr-2 h-5 w-5" /> LIMPIAR FILTROS
-          </Button>
-        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -420,6 +411,17 @@ export default function DashboardPage() {
                   </div>
                 </PopoverContent>
               </Popover>
+              
+              {anyFilterActive && (
+                <Button 
+                  variant="destructive" 
+                  onClick={handleClearFilter}
+                  className="h-12 px-6 font-black uppercase tracking-widest shadow-md rounded-xl animate-in zoom-in-95 duration-200"
+                >
+                  <RotateCcw className="mr-2 h-5 w-5" /> ELIMINAR FILTROS
+                </Button>
+              )}
+
               <div className="flex gap-2">
                 <Button variant="outline" size="lg" onClick={handleDownloadPDF} disabled={selectedIds.size === 0} className="border-2 border-primary text-primary font-black h-12 px-6 rounded-xl"><FileDown className="mr-3 h-5 w-5" /> EXPORTAR PDF {selectedIds.size > 0 && `(${selectedIds.size})`}</Button>
                 <Button variant="outline" size="lg" onClick={handleDownloadExcel} disabled={selectedIds.size === 0} className="border-2 border-green-600 text-green-600 font-black h-12 px-6 rounded-xl"><FileSpreadsheet className="mr-3 h-5 w-5" /> EXPORTAR EXCEL {selectedIds.size > 0 && `(${selectedIds.size})`}</Button>
