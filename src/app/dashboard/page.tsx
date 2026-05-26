@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
@@ -43,11 +43,22 @@ interface RegistroFactura {
   transporte?: string;
 }
 
+interface GrupoDashboard {
+  numeroRegistro: string;
+  codigoProveedor: string;
+  numeroFactura: string;
+  fechaRegistro: string;
+  estado: string;
+  valorTotalAcumulado: number;
+  items: RegistroFactura[];
+}
+
 export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [entregadosFisicos, setEntregadosFisicos] = useState<Set<string>>(new Set());
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("PENDIENTE");
   const [invoiceFilter, setInvoiceFilter] = useState<string>("");
@@ -85,9 +96,21 @@ export default function DashboardPage() {
     return clean;
   };
 
-  const registrosFiltrados = useMemo(() => {
-    return registros.filter(reg => {
-      // Filtrado por fecha
+  const toggleRow = (numeroRegistro: string) => {
+    const next = new Set(expandedRows);
+    if (next.has(numeroRegistro)) {
+      next.delete(numeroRegistro);
+    } else {
+      next.add(numeroRegistro);
+    }
+    setExpandedRows(next);
+  };
+
+  const groupedRegistros = useMemo(() => {
+    const groups: Record<string, GrupoDashboard> = {};
+    
+    // Primero filtramos los registros base por fecha e invoice
+    const baseFiltrada = registros.filter(reg => {
       let matchesDate = true;
       if (dateRange?.from) {
         const fechaReg = new Date(reg.fechaRegistro);
@@ -96,61 +119,97 @@ export default function DashboardPage() {
         matchesDate = isWithinInterval(fechaReg, { start, end });
       }
 
-      // Filtrado por estado FÍSICO (Check)
-      let matchesStatus = true;
-      if (statusFilter === "ENTREGADO") {
-        matchesStatus = entregadosFisicos.has(reg.id);
-      } else if (statusFilter === "PENDIENTE") {
-        matchesStatus = !entregadosFisicos.has(reg.id);
-      }
-
-      // Filtrado por factura
       let matchesInvoice = true;
       if (invoiceFilter.trim()) {
-        matchesInvoice = reg.numeroFactura.toLowerCase().includes(invoiceFilter.toLowerCase().replace(/-/g, ''));
+        const cleanInvoice = invoiceFilter.toLowerCase().replace(/-/g, '');
+        matchesInvoice = reg.numeroFactura.toLowerCase().includes(cleanInvoice);
       }
 
-      return matchesDate && matchesStatus && matchesInvoice;
+      return matchesDate && matchesInvoice;
     });
+
+    // Agrupamos
+    baseFiltrada.forEach(reg => {
+      const key = reg.numeroRegistro;
+      if (!groups[key]) {
+        groups[key] = {
+          numeroRegistro: key,
+          codigoProveedor: reg.codigoProveedor,
+          numeroFactura: reg.numeroFactura,
+          fechaRegistro: reg.fechaRegistro,
+          estado: reg.estado,
+          valorTotalAcumulado: 0,
+          items: []
+        };
+      }
+      groups[key].items.push(reg);
+      groups[key].valorTotalAcumulado += reg.valorTotal;
+    });
+
+    // Ahora filtramos los grupos según el estado FÍSICO
+    return Object.values(groups).filter(grupo => {
+      const itemsFiltradosFisico = grupo.items.filter(item => {
+        if (statusFilter === "ENTREGADO") {
+          return entregadosFisicos.has(item.id);
+        } else if (statusFilter === "PENDIENTE") {
+          return !entregadosFisicos.has(item.id);
+        }
+        return true;
+      });
+
+      // Si el grupo no tiene items que cumplan el filtro físico, se oculta el grupo entero
+      if (itemsFiltradosFisico.length === 0) return false;
+
+      // Actualizamos el grupo para que solo muestre los items que cumplen el filtro
+      grupo.items = itemsFiltradosFisico;
+      grupo.valorTotalAcumulado = itemsFiltradosFisico.reduce((acc, i) => acc + i.valorTotal, 0);
+      
+      return true;
+    }).sort((a, b) => new Date(b.fechaRegistro).getTime() - new Date(a.fechaRegistro).getTime());
   }, [registros, dateRange, statusFilter, invoiceFilter, entregadosFisicos]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateRange, statusFilter, invoiceFilter, entregadosFisicos]);
+  }, [dateRange, statusFilter, invoiceFilter]);
 
-  const pagedRegistros = useMemo(() => {
+  const pagedGroups = useMemo(() => {
     let start = 0;
     let end = 50;
-    
     if (currentPage > 1) {
       start = 50 + (currentPage - 2) * 100;
       end = start + 100;
     }
-    
-    return registrosFiltrados.slice(start, end);
-  }, [registrosFiltrados, currentPage]);
+    return groupedRegistros.slice(start, end);
+  }, [groupedRegistros, currentPage]);
 
   const totalPages = useMemo(() => {
-    const total = registrosFiltrados.length;
+    const total = groupedRegistros.length;
     if (total <= 50) return 1;
     return 1 + Math.ceil((total - 50) / 100);
-  }, [registrosFiltrados]);
+  }, [groupedRegistros]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(new Set(registrosFiltrados.map(r => r.id)));
+      const allItemIds = groupedRegistros.flatMap(g => g.items.map(i => i.id));
+      setSelectedIds(new Set(allItemIds));
     } else {
       setSelectedIds(new Set());
     }
   };
 
+  const handleSelectGroup = (items: RegistroFactura[], checked: boolean) => {
+    const next = new Set(selectedIds);
+    items.forEach(item => {
+      if (checked) next.add(item.id);
+      else next.delete(item.id);
+    });
+    setSelectedIds(next);
+  };
+
   const handleSelectRow = (id: string, checked: boolean) => {
     const next = new Set(selectedIds);
-    if (checked) {
-      next.add(id);
-    } else {
-      next.delete(id);
-    }
+    if (checked) next.add(id);
+    else next.delete(id);
     setSelectedIds(next);
   };
 
@@ -161,78 +220,36 @@ export default function DashboardPage() {
     setEntregadosFisicos(next);
   };
 
-  const itemsParaExportar = registrosFiltrados.filter(r => selectedIds.has(r.id));
+  const itemsParaExportar = registros.filter(r => selectedIds.has(r.id));
   const totalMontoExportar = itemsParaExportar.reduce((acc, r) => acc + r.valorTotal, 0);
 
   const handleDownloadPDF = () => {
     if (itemsParaExportar.length === 0) return;
-
     const doc = new jspdf();
-    let dateStr = "";
-    
-    if (dateRange?.from) {
-      if (dateRange.to) {
-        dateStr = `Del ${format(dateRange.from, "dd/MM/yyyy")} al ${format(dateRange.to, "dd/MM/yyyy")}`;
-      } else {
-        dateStr = `Día ${format(dateRange.from, "dd/MM/yyyy")}`;
-      }
-    } else {
-      dateStr = "Todos los registros";
-    }
-
+    let dateStr = dateRange?.from ? (dateRange.to ? `Del ${format(dateRange.from, "dd/MM/yyyy")} al ${format(dateRange.to, "dd/MM/yyyy")}` : `Día ${format(dateRange.from, "dd/MM/yyyy")}`) : "Todos los registros";
     doc.setFontSize(18);
     doc.setTextColor(0, 85, 184);
     doc.text('CHAIDE - REPORTE DE FACTURACIÓN SELECCIONADA', 14, 22);
-    
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Periodo: ${dateStr}`, 14, 30);
     doc.text(`Items seleccionados: ${itemsParaExportar.length}`, 14, 36);
-
-    const tableData = itemsParaExportar.map(reg => [
-      format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
-      reg.numeroGasto || 'N/A',
-      formatInvoice(reg.numeroFactura),
-      reg.transporte || 'N/A',
-      `$${reg.valorTotal.toFixed(2)}`,
-      reg.estado,
-      entregadosFisicos.has(reg.id) ? 'SÍ' : 'NO'
-    ]);
-
+    const tableData = itemsParaExportar.map(reg => [format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"), reg.numeroGasto || 'N/A', formatInvoice(reg.numeroFactura), reg.transporte || 'N/A', `$${reg.valorTotal.toFixed(2)}`, reg.estado, entregadosFisicos.has(reg.id) ? 'SÍ' : 'NO']);
     autoTable(doc, {
       startY: 42,
       head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado', 'Físico']],
       body: tableData,
-      foot: [[
-        { content: 'TOTAL DE SELECCIÓN', colSpan: 4, styles: { halign: 'right' } },
-        { content: `$${totalMontoExportar.toFixed(2)}`, styles: { halign: 'right' } },
-        '',
-        ''
-      ]],
+      foot: [[{ content: 'TOTAL DE SELECCIÓN', colSpan: 4, styles: { halign: 'right' } }, { content: `$${totalMontoExportar.toFixed(2)}`, styles: { halign: 'right' } }, '', '']],
       headStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
       footStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [240, 244, 248] },
       styles: { fontSize: 9, cellPadding: 3 },
     });
-
-    const pageCount = (doc as any).internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150);
-      doc.text(
-        `Generado el ${format(new Date(), "dd/MM/yyyy HH:mm:ss")} - Página ${i} de ${pageCount}`,
-        14,
-        doc.internal.pageSize.height - 10
-      );
-    }
-
     doc.save(`Reporte_Facturacion_Seleccionada_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
   };
 
   const handleDownloadExcel = () => {
     if (itemsParaExportar.length === 0) return;
-
     const data = itemsParaExportar.map(reg => ({
       'Fecha': format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
       'N° Gasto': reg.numeroGasto || 'N/A',
@@ -242,15 +259,9 @@ export default function DashboardPage() {
       'Estado': reg.estado,
       'Entregado Físico': entregadosFisicos.has(reg.id) ? 'SÍ' : 'NO'
     }));
-
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Facturación");
-    
-    // Auto-ajustar anchos de columna
-    const max_width = data.reduce((w, r) => Math.max(w, r['N° Factura'].length), 15);
-    worksheet["!cols"] = [{ wch: 20 }, { wch: 15 }, { wch: max_width }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 15 }];
-
     XLSX.writeFile(workbook, `Reporte_Facturacion_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
   };
 
@@ -273,37 +284,31 @@ export default function DashboardPage() {
         <Card className="border-l-8 border-l-blue-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Transportes</CardTitle>
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Package className="h-5 w-5 text-blue-600" />
-            </div>
+            <div className="p-2 bg-blue-100 rounded-lg"><Package className="h-5 w-5 text-blue-600" /></div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black tracking-tighter text-blue-700">{registrosFiltrados.length}</div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Unidades vinculadas</p>
+            <div className="text-3xl font-black tracking-tighter text-blue-700">{registros.length}</div>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Unidades vinculadas históricas</p>
           </CardContent>
         </Card>
 
         <Card className="border-l-8 border-l-orange-500 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Pendientes</CardTitle>
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <Clock className="h-5 w-5 text-orange-500" />
-            </div>
+            <div className="p-2 bg-orange-100 rounded-lg"><Clock className="h-5 w-5 text-orange-500" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-orange-600">
                {registros.filter(r => !entregadosFisicos.has(r.id)).length}
             </div>
-            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Por liquidar físicamente</p>
+            <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Gastos por liquidar físicamente</p>
           </CardContent>
         </Card>
 
         <Card className="border-l-8 border-l-green-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Registros Exitosos</CardTitle>
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-            </div>
+            <div className="p-2 bg-green-100 rounded-lg"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black tracking-tighter text-green-700">
@@ -331,104 +336,45 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-center gap-4">
               <div className="relative w-[220px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/60" />
-                <Input 
-                  placeholder="FILTRAR POR FACTURA" 
-                  value={invoiceFilter}
-                  onChange={(e) => setInvoiceFilter(e.target.value)}
-                  className="h-12 pl-10 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight text-gray-700 bg-white placeholder:text-gray-400"
-                />
+                <Input placeholder="FILTRAR POR FACTURA" value={invoiceFilter} onChange={(e) => setInvoiceFilter(e.target.value)} className="h-12 pl-10 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight bg-white" />
               </div>
-
-              <div className="flex items-center gap-2">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[200px] h-12 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight text-gray-700 bg-white">
-                    <div className="flex items-center gap-2">
-                      <Filter className="h-4 w-4 text-primary/60" />
-                      <SelectValue placeholder="FILTRAR FÍSICO" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-none shadow-2xl">
-                    <SelectItem value="TODOS" className="font-bold">TODOS LOS REGISTROS</SelectItem>
-                    <SelectItem value="ENTREGADO" className="font-bold text-green-600 uppercase">ENTREGADO FÍSICO</SelectItem>
-                    <SelectItem value="PENDIENTE" className="font-bold text-orange-600 uppercase">PENDIENTE FÍSICO</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[200px] h-12 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight bg-white">
+                  <div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary/60" /><SelectValue placeholder="FILTRAR FÍSICO" /></div>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-none shadow-2xl">
+                  <SelectItem value="TODOS" className="font-bold">TODOS LOS REGISTROS</SelectItem>
+                  <SelectItem value="ENTREGADO" className="font-bold text-green-600 uppercase">ENTREGADO FÍSICO</SelectItem>
+                  <SelectItem value="PENDIENTE" className="font-bold text-orange-600 uppercase">PENDIENTE FÍSICO</SelectItem>
+                </SelectContent>
+              </Select>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    className={cn(
-                      "bg-white h-12 px-5 rounded-xl shadow-sm border-2 border-primary/20 flex items-center gap-3 hover:bg-gray-50 transition-all group min-w-[240px]",
-                      !dateRange && "text-muted-foreground"
-                    )}
-                  >
+                  <Button variant="outline" className="bg-white h-12 px-5 rounded-xl shadow-sm border-2 border-primary/20 flex items-center gap-3 hover:bg-gray-50 min-w-[240px]">
                     <CalendarIcon className="h-5 w-5 text-primary" />
                     <span className="text-sm font-black uppercase tracking-tight text-gray-700">
-                      {dateRange?.from ? (
-                        dateRange.to ? (
-                          <>{format(dateRange.from, "d MMM", { locale: es }).toUpperCase()} - {format(dateRange.to, "d MMM, yyyy", { locale: es }).toUpperCase()}</>
-                        ) : (
-                          format(dateRange.from, "d 'DE' MMMM, yyyy", { locale: es }).toUpperCase()
-                        )
-                      ) : (
-                        "SELECCIONAR PERIODO"
-                      )}
+                      {dateRange?.from ? (dateRange.to ? <>{format(dateRange.from, "d MMM", { locale: es }).toUpperCase()} - {format(dateRange.to, "d MMM, yyyy", { locale: es }).toUpperCase()}</> : format(dateRange.from, "d 'DE' MMMM, yyyy", { locale: es }).toUpperCase()) : "SELECCIONAR PERIODO"}
                     </span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto group-data-[state=open]:rotate-180 transition-transform" />
+                    <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-3xl overflow-hidden" align="end">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={setDateRange}
-                    numberOfMonths={2}
-                    locale={es}
-                    className="p-6 bg-white"
-                  />
+                  <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={es} className="p-6 bg-white" />
                   <div className="p-4 bg-gray-50 border-t flex justify-end">
-                     <Button variant="ghost" size="sm" onClick={handleClearFilter} className="text-xs font-bold text-primary">
-                       <RotateCcw className="mr-2 h-3 w-3" /> RESTABLECER
-                     </Button>
+                     <Button variant="ghost" size="sm" onClick={handleClearFilter} className="text-xs font-bold text-primary"><RotateCcw className="mr-2 h-3 w-3" /> RESTABLECER</Button>
                   </div>
                 </PopoverContent>
               </Popover>
-
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="lg" 
-                  onClick={handleDownloadPDF}
-                  disabled={selectedIds.size === 0}
-                  className="border-2 border-primary text-primary hover:bg-primary/5 font-black h-12 px-6 rounded-xl transition-all"
-                >
-                  <FileDown className="mr-3 h-5 w-5" />
-                  EXPORTAR PDF {selectedIds.size > 0 && `(${selectedIds.size})`}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="lg" 
-                  onClick={handleDownloadExcel}
-                  disabled={selectedIds.size === 0}
-                  className="border-2 border-green-600 text-green-600 hover:bg-green-50 font-black h-12 px-6 rounded-xl transition-all"
-                >
-                  <FileSpreadsheet className="mr-3 h-5 w-5" />
-                  EXPORTAR EXCEL {selectedIds.size > 0 && `(${selectedIds.size})`}
-                </Button>
+                <Button variant="outline" size="lg" onClick={handleDownloadPDF} disabled={selectedIds.size === 0} className="border-2 border-primary text-primary font-black h-12 px-6 rounded-xl"><FileDown className="mr-3 h-5 w-5" /> EXPORTAR PDF {selectedIds.size > 0 && `(${selectedIds.size})`}</Button>
+                <Button variant="outline" size="lg" onClick={handleDownloadExcel} disabled={selectedIds.size === 0} className="border-2 border-green-600 text-green-600 font-black h-12 px-6 rounded-xl"><FileSpreadsheet className="mr-3 h-5 w-5" /> EXPORTAR EXCEL {selectedIds.size > 0 && `(${selectedIds.size})`}</Button>
               </div>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-32 gap-6">
-              <Loader2 className="h-14 w-14 animate-spin text-primary opacity-50" />
-              <p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Sincronizando datos operativos...</p>
-            </div>
+            <div className="flex flex-col items-center justify-center py-32 gap-6"><Loader2 className="h-14 w-14 animate-spin text-primary opacity-50" /><p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Sincronizando datos operativos...</p></div>
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -437,82 +383,106 @@ export default function DashboardPage() {
                     <TableRow className="hover:bg-transparent border-b-2">
                       <TableHead className="w-[50px] py-6 px-4 text-center">
                         <Checkbox 
-                          checked={registrosFiltrados.length > 0 && selectedIds.size === registrosFiltrados.length}
+                          checked={groupedRegistros.length > 0 && Array.from(selectedIds).length === registros.length}
                           onCheckedChange={handleSelectAll}
-                          aria-label="Seleccionar todo"
                         />
                       </TableHead>
-                      <TableHead className="w-[200px] font-black text-xs uppercase text-gray-500 py-6 px-4 text-center tracking-widest">Fecha</TableHead>
-                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Gasto</TableHead>
+                      <TableHead className="w-[40px]"></TableHead>
+                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest py-6 px-4">Fecha</TableHead>
                       <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
-                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">Transporte</TableHead>
-                      <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto</TableHead>
+                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">Proveedor</TableHead>
+                      <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto Total</TableHead>
                       <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
-                      <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-6 tracking-widest">Físico</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pagedRegistros.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">
-                          No se encontraron registros para los criterios seleccionados.
-                        </TableCell>
-                      </TableRow>
+                    {pagedGroups.length === 0 ? (
+                      <TableRow><TableCell colSpan={7} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No se encontraron registros.</TableCell></TableRow>
                     ) : (
-                      pagedRegistros.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-primary/5 transition-all border-b border-gray-100 group">
-                          <TableCell className="py-6 px-4 text-center">
-                            <Checkbox 
-                              checked={selectedIds.has(item.id)}
-                              onCheckedChange={(checked) => handleSelectRow(item.id, !!checked)}
-                              aria-label={`Seleccionar registro ${item.numeroFactura}`}
-                            />
-                          </TableCell>
-                          <TableCell className="py-6 px-4 text-center">
-                            <div className="flex flex-col">
-                              <span className="font-black text-sm text-gray-900 group-hover:text-primary transition-colors">
-                                {format(new Date(item.fechaRegistro), "dd/MM/yyyy", { locale: es })}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
-                                {format(new Date(item.fechaRegistro), "HH:mm 'HRS'")}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-bold text-gray-500 text-center text-sm">
-                            {item.numeroGasto || 'N/A'}
-                          </TableCell>
-                          <TableCell className="font-black text-gray-900 tabular-nums text-center tracking-tight">
-                            {formatInvoice(item.numeroFactura)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                              <span className="font-black text-primary tracking-tight">{item.transporte || 'N/A'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right px-10">
-                            <span className="text-xl font-black text-primary tracking-tighter">
-                              ${item.valorTotal.toFixed(2)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center px-10">
-                            <Badge className={cn(
-                              "px-4 py-1 font-black uppercase text-[9px] tracking-widest shadow-md border-none",
-                              item.estado.toUpperCase() === 'PROCESADO' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600"
-                            )}>
-                              {item.estado}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center px-6">
-                            <Checkbox 
-                              checked={entregadosFisicos.has(item.id)}
-                              onCheckedChange={(checked) => handleToggleEntregado(item.id, !!checked)}
-                              aria-label={`Validar entrega física del gasto ${item.numeroGasto}`}
-                              className="border-2 border-primary/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      pagedGroups.map((grupo) => {
+                        const isExpanded = expandedRows.has(grupo.numeroRegistro);
+                        const groupAllSelected = grupo.items.every(i => selectedIds.has(i.id));
+                        return (
+                          <React.Fragment key={grupo.numeroRegistro}>
+                            <TableRow className={cn("hover:bg-primary/5 transition-all border-b border-gray-100 group cursor-pointer", isExpanded && "bg-primary/5")}>
+                              <TableCell className="py-6 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                <Checkbox 
+                                  checked={groupAllSelected}
+                                  onCheckedChange={(checked) => handleSelectGroup(grupo.items, !!checked)}
+                                />
+                              </TableCell>
+                              <TableCell className="text-center" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                                {isExpanded ? <ChevronDown className="h-6 w-6 text-primary" /> : <ChevronRight className="h-6 w-6 text-muted-foreground" />}
+                              </TableCell>
+                              <TableCell className="py-6 px-4 text-center" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                                <div className="flex flex-col">
+                                  <span className="font-black text-sm text-gray-900">{format(new Date(grupo.fechaRegistro), "dd/MM/yyyy")}</span>
+                                  <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">{format(new Date(grupo.fechaRegistro), "HH:mm 'HRS'")}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-black text-gray-900 tabular-nums text-center tracking-tight" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                                {formatInvoice(grupo.numeroFactura)}
+                              </TableCell>
+                              <TableCell className="text-center font-bold text-gray-600" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                                {grupo.codigoProveedor}
+                              </TableCell>
+                              <TableCell className="text-right px-10" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                                <span className="text-xl font-black text-primary tracking-tighter">${grupo.valorTotalAcumulado.toFixed(2)}</span>
+                              </TableCell>
+                              <TableCell className="text-center px-10" onClick={() => toggleRow(grupo.numeroRegistro)}>
+                                <Badge className={cn("px-4 py-1 font-black uppercase text-[9px] tracking-widest", grupo.estado.toUpperCase() === 'PROCESADO' ? "bg-green-600" : "bg-orange-500")}>
+                                  {grupo.estado}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                            {isExpanded && (
+                              <TableRow className="bg-muted/30 border-l-4 border-l-primary animate-in fade-in duration-300">
+                                <TableCell colSpan={7} className="p-0">
+                                  <div className="p-6">
+                                    <div className="flex items-center gap-2 mb-4 text-primary font-black uppercase text-xs tracking-widest">
+                                      <Package className="h-4 w-4" /> Desglose de Transportes y Gastos
+                                    </div>
+                                    <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
+                                      <Table>
+                                        <TableHeader className="bg-muted/50">
+                                          <TableRow className="hover:bg-transparent">
+                                            <TableHead className="w-[50px] text-center"></TableHead>
+                                            <TableHead className="font-black text-[10px] uppercase py-3 pl-8">N° Gasto</TableHead>
+                                            <TableHead className="font-black text-[10px] uppercase text-center">N° Transporte</TableHead>
+                                            <TableHead className="text-right font-black text-[10px] uppercase pr-8">Monto Rubro</TableHead>
+                                            <TableHead className="text-center font-black text-[10px] uppercase w-[100px]">Físico</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {grupo.items.map((item) => (
+                                            <TableRow key={item.id} className="hover:bg-primary/5 group/sub">
+                                              <TableCell className="text-center">
+                                                <Checkbox checked={selectedIds.has(item.id)} onCheckedChange={(checked) => handleSelectRow(item.id, !!checked)} />
+                                              </TableCell>
+                                              <TableCell className="py-4 pl-8">
+                                                <div className="flex items-center gap-2 font-bold text-gray-600"><ReceiptText className="h-4 w-4 opacity-50" />{item.numeroGasto || 'N/A'}</div>
+                                              </TableCell>
+                                              <TableCell className="text-center font-black text-primary text-base">{item.transporte || 'N/A'}</TableCell>
+                                              <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">${item.valorTotal.toFixed(2)}</TableCell>
+                                              <TableCell className="text-center">
+                                                <Checkbox 
+                                                  checked={entregadosFisicos.has(item.id)} 
+                                                  onCheckedChange={(checked) => handleToggleEntregado(item.id, !!checked)}
+                                                  className="border-2 border-primary/50 data-[state=checked]:bg-primary"
+                                                />
+                                              </TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
+                        )
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -522,31 +492,11 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between px-10 py-6 bg-gray-50 border-t border-gray-100">
                   <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
                     Página {currentPage} de {totalPages} 
-                    <span className="ml-4 opacity-60">
-                      (Mostrando {currentPage === 1 ? '50' : '100'} de {registrosFiltrados.length} registros)
-                    </span>
+                    <span className="ml-4 opacity-60">(Mostrando {groupedRegistros.length} facturas agrupadas)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      className="h-10 px-4 font-black border-2"
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-2" />
-                      ANTERIOR
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      className="h-10 px-4 font-black border-2"
-                    >
-                      SIGUIENTE
-                      <ChevronRight className="h-4 w-4 ml-2" />
-                    </Button>
+                    <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} className="h-10 px-4 font-black border-2"><ChevronLeft className="h-4 w-4 mr-2" /> ANTERIOR</Button>
+                    <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} className="h-10 px-4 font-black border-2">SIGUIENTE <ChevronRight className="h-4 w-4 ml-2" /></Button>
                   </div>
                 </div>
               )}
@@ -556,9 +506,7 @@ export default function DashboardPage() {
       </Card>
       
       <div className="text-center py-6">
-        <p className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.4em] opacity-60">
-          Chaide - Sistema de Gestión de Gastos de Transportes v1.0
-        </p>
+        <p className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.4em] opacity-60">Chaide - Sistema de Gestión de Gastos de Transportes v1.0</p>
       </div>
     </div>
   );
