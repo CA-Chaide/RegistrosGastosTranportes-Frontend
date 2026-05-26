@@ -1,5 +1,5 @@
 
-import type { MenuTipoUsuario } from "@/types/interfaces";
+import type { MenuTipoUsuario, RegistroGastosTransporte } from "@/types/interfaces";
 import type { BodyListResponse } from "@/types/body-list-response";
 import type { BodyResponse } from "@/types/body-response";
 import { environment } from "@/environments/environments.prod";
@@ -7,7 +7,7 @@ import { environment } from "@/environments/environments.prod";
 const API_URL = `${environment.apiURL}/api/RegistrosGastosTransporte`;
 
 export const registroGastosTransporte = {
-  async getAll(): Promise<BodyListResponse<MenuTipoUsuario>> {
+  async getAll(): Promise<BodyListResponse<RegistroGastosTransporte>> {
     const response = await fetch(API_URL);
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({ message: 'Error desconocido' }));
@@ -16,7 +16,7 @@ export const registroGastosTransporte = {
     return response.json();
   },
 
-  async getById(id: number | string): Promise<BodyResponse<MenuTipoUsuario>> {
+  async getById(id: number | string): Promise<BodyResponse<RegistroGastosTransporte>> {
     const response = await fetch(`${API_URL}/${id}`);
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({ message: 'Error desconocido' }));
@@ -25,7 +25,7 @@ export const registroGastosTransporte = {
     return response.json();
   },
   
-  async save(data: MenuTipoUsuario): Promise<BodyResponse<MenuTipoUsuario>> {
+  async save(data: RegistroGastosTransporte): Promise<BodyResponse<RegistroGastosTransporte>> {
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

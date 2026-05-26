@@ -109,6 +109,8 @@ export interface User {
 export interface RegistroGastosTransporte {
   id: number;
   AgenteTransporte: string;
-  Nu
-}
+  NumFactura: string;
+  Transporte: string;
+  FechaRegistro: string;
+  Estado: string;
 }
