@@ -111,6 +111,8 @@ export interface RegistroGastosTransporte {
   AgenteTransporte: string;
   NumFactura: string;
   Transporte: string;
+  GastoTransporte?: string;
+  ValorGasto?: number;
   FechaRegistro: string;
   Estado: string;
 }
