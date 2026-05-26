@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -6,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [entregadosFisicos, setEntregadosFisicos] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("TODOS");
+  const [invoiceFilter, setInvoiceFilter] = useState<string>("");
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
@@ -100,13 +101,19 @@ export default function DashboardPage() {
         matchesStatus = reg.estado.toUpperCase() === statusFilter;
       }
 
-      return matchesDate && matchesStatus;
+      // Filtrado por factura
+      let matchesInvoice = true;
+      if (invoiceFilter.trim()) {
+        matchesInvoice = reg.numeroFactura.toLowerCase().includes(invoiceFilter.toLowerCase().replace(/-/g, ''));
+      }
+
+      return matchesDate && matchesStatus && matchesInvoice;
     });
-  }, [registros, dateRange, statusFilter]);
+  }, [registros, dateRange, statusFilter, invoiceFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateRange, statusFilter]);
+  }, [dateRange, statusFilter, invoiceFilter]);
 
   const pagedRegistros = useMemo(() => {
     let start = 0;
@@ -250,6 +257,7 @@ export default function DashboardPage() {
   const handleClearFilter = () => {
     setDateRange(undefined);
     setStatusFilter("TODOS");
+    setInvoiceFilter("");
   };
 
   return (
@@ -324,6 +332,17 @@ export default function DashboardPage() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-4">
+              {/* Filtro por Factura */}
+              <div className="relative w-[220px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/60" />
+                <Input 
+                  placeholder="FILTRAR POR FACTURA" 
+                  value={invoiceFilter}
+                  onChange={(e) => setInvoiceFilter(e.target.value)}
+                  className="h-12 pl-10 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight text-gray-700 bg-white placeholder:text-gray-400"
+                />
+              </div>
+
               {/* Filtro por Estado */}
               <div className="flex items-center gap-2">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -442,7 +461,7 @@ export default function DashboardPage() {
                     {pagedRegistros.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">
-                          No se encontraron registros para el rango o estado seleccionado.
+                          No se encontraron registros para los criterios seleccionados.
                         </TableCell>
                       </TableRow>
                     ) : (
