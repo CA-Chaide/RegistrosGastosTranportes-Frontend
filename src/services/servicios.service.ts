@@ -100,20 +100,33 @@ export const serviciosService = {
       const json = await response.json();
       remoteData = json.data || [];
     } else {
-      // Datos de ejemplo si la API falla
+      // Datos de ejemplo mejorados para mostrar desglose de múltiples transportes
       const now = new Date().toISOString();
       remoteData = [
+        // Registro con múltiple desglose (Dos transportes para un mismo registro)
         { 
-          id: '1', 
+          id: '1a', 
           numeroRegistro: 'REG-845122', 
           codigoProveedor: '5220802', 
           numeroFactura: '001-001-0000840', 
           numeroGasto: 'G-10294',
           transporte: '0000534650',
-          valorTotal: 511.00, 
+          valorTotal: 250.00, 
           fechaRegistro: now,
           estado: 'Procesado'
         },
+        { 
+          id: '1b', 
+          numeroRegistro: 'REG-845122', 
+          codigoProveedor: '5220802', 
+          numeroFactura: '001-001-0000840', 
+          numeroGasto: 'G-10294-B',
+          transporte: '0000534655',
+          valorTotal: 261.00, 
+          fechaRegistro: now,
+          estado: 'Procesado'
+        },
+        // Registro único
         { 
           id: '2', 
           numeroRegistro: 'REG-992103', 

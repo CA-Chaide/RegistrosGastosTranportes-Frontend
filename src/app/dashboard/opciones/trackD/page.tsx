@@ -82,9 +82,10 @@ export default function ConsultaRegistrosPage() {
     const groups: Record<string, GrupoRegistro> = {};
     
     registros.forEach(reg => {
-      if (!groups[reg.numeroRegistro]) {
-        groups[reg.numeroRegistro] = {
-          numeroRegistro: reg.numeroRegistro,
+      const key = reg.numeroRegistro;
+      if (!groups[key]) {
+        groups[key] = {
+          numeroRegistro: key,
           codigoProveedor: reg.codigoProveedor,
           numeroFactura: reg.numeroFactura,
           fechaRegistro: reg.fechaRegistro,
@@ -93,8 +94,8 @@ export default function ConsultaRegistrosPage() {
           items: []
         };
       }
-      groups[reg.numeroRegistro].items.push(reg);
-      groups[reg.numeroRegistro].valorTotalAcumulado += reg.valorTotal;
+      groups[key].items.push(reg);
+      groups[key].valorTotalAcumulado += reg.valorTotal;
     });
 
     const list = Object.values(groups).sort((a, b) => 
@@ -132,7 +133,7 @@ export default function ConsultaRegistrosPage() {
       <Card className="shadow-2xl border-none rounded-3xl overflow-hidden border-t-4 border-t-primary">
         <CardHeader className="bg-muted/30 px-8 py-6">
           <CardTitle className="text-2xl font-black text-primary uppercase tracking-tight">Listado Maestro de Facturas</CardTitle>
-          <CardDescription className="text-base font-medium">Visualice los detalles de cada registro generado por el sistema.</CardDescription>
+          <CardDescription className="text-base font-medium">Haga clic en el número de registro para desglosar sus transportes asociados.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -231,7 +232,7 @@ export default function ConsultaRegistrosPage() {
                                 <div className="p-8 space-y-4">
                                   <div className="flex items-center gap-2 mb-2">
                                     <Package className="h-5 w-5 text-primary" />
-                                    <h4 className="text-sm font-black uppercase tracking-widest text-primary">Desglose de Transportes Asociados</h4>
+                                    <h4 className="text-sm font-black uppercase tracking-widest text-primary">Desglose de Transportes Asociados ({grupo.items.length})</h4>
                                   </div>
                                   <div className="bg-white rounded-2xl border-2 border-primary/10 overflow-hidden shadow-inner">
                                     <Table>
@@ -251,13 +252,23 @@ export default function ConsultaRegistrosPage() {
                                                 {item.numeroGasto || 'N/A'}
                                               </div>
                                             </TableCell>
-                                            <TableCell className="text-center font-black text-primary">{item.transporte || 'N/A'}</TableCell>
+                                            <TableCell className="text-center font-black text-primary text-base">
+                                              {item.transporte || 'N/A'}
+                                            </TableCell>
                                             <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">
                                               ${item.valorTotal.toFixed(2)}
                                             </TableCell>
                                           </TableRow>
                                         ))}
                                       </TableBody>
+                                      <tfoot className="bg-gray-50 border-t">
+                                        <TableRow className="hover:bg-transparent">
+                                          <TableCell colSpan={2} className="text-right font-black text-[10px] uppercase tracking-widest py-3">Total del Registro</TableCell>
+                                          <TableCell className="text-right pr-8 font-black text-xl text-primary tracking-tighter">
+                                            ${grupo.valorTotalAcumulado.toFixed(2)}
+                                          </TableCell>
+                                        </TableRow>
+                                      </tfoot>
                                     </Table>
                                   </div>
                                 </div>
