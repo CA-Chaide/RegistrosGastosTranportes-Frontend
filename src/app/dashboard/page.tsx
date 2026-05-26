@@ -62,7 +62,8 @@ export default function DashboardPage() {
   const [entregadosFisicos, setEntregadosFisicos] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string>("TODOS");
+  // Por defecto ahora es PENDIENTE para que solo se vean las que no tienen check
+  const [statusFilter, setStatusFilter] = useState<string>("PENDIENTE");
   const [invoiceFilter, setInvoiceFilter] = useState<string>("");
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -211,6 +212,16 @@ export default function DashboardPage() {
     else next.delete(numeroRegistro);
     setEntregadosFisicos(next);
     localStorage.setItem(FISICOS_STORAGE_KEY, JSON.stringify(Array.from(next)));
+    
+    // Al quitarse de la vista, si estaba seleccionada para exportar, la deseleccionamos
+    if (checked && statusFilter === "PENDIENTE") {
+       const idsToRemove = registros.filter(r => r.numeroRegistro === numeroRegistro).map(r => r.id);
+       setSelectedIds(prev => {
+          const updated = new Set(prev);
+          idsToRemove.forEach(id => updated.delete(id));
+          return updated;
+       });
+    }
   };
 
   const itemsParaExportar = registros.filter(r => selectedIds.has(r.id));
@@ -294,11 +305,11 @@ export default function DashboardPage() {
 
   const handleClearFilter = () => {
     setDateRange(undefined);
-    setStatusFilter("TODOS");
+    setStatusFilter("PENDIENTE"); // Al limpiar filtros volvemos a mostrar las pendientes por defecto
     setInvoiceFilter("");
   };
 
-  const anyFilterActive = invoiceFilter.trim() !== "" || statusFilter !== "TODOS" || dateRange !== undefined;
+  const anyFilterActive = invoiceFilter.trim() !== "" || statusFilter !== "PENDIENTE" || dateRange !== undefined;
 
   const totalFacturasRegistradas = new Set(registros.map(r => r.numeroRegistro)).size;
   const totalFacturasProcesadas = new Set(registros.filter(r => r.estado.toUpperCase() === 'PROCESADO').map(r => r.numeroRegistro)).size;
@@ -358,12 +369,9 @@ export default function DashboardPage() {
             <div>
               <CardTitle className="text-3xl font-black text-primary uppercase tracking-tighter">Detalles de Facturación</CardTitle>
               <CardDescription className="font-semibold text-base mt-1 text-gray-500">
-                {dateRange?.from 
-                  ? dateRange.to 
-                    ? `Registros desde ${format(dateRange.from, "d 'de' MMMM", { locale: es })} hasta ${format(dateRange.to, "d 'de' MMMM", { locale: es })}`
-                    : `Registros del ${format(dateRange.from, "d 'de' MMMM", { locale: es })}`
-                  : "Mostrando todos los registros históricos"
-                }
+                {statusFilter === "PENDIENTE" ? "Mostrando facturas pendientes por entregar físicamente" : 
+                 statusFilter === "ENTREGADO" ? "Mostrando facturas ya entregadas físicamente" : 
+                 "Mostrando todos los registros históricos"}
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-4">
@@ -389,9 +397,9 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary/60" /><SelectValue placeholder="FILTRAR FÍSICO" /></div>
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-none shadow-2xl">
-                  <SelectItem value="TODOS" className="font-bold">TODOS LOS REGISTROS</SelectItem>
-                  <SelectItem value="ENTREGADO" className="font-bold text-green-600 uppercase">ENTREGADO FÍSICO</SelectItem>
                   <SelectItem value="PENDIENTE" className="font-bold text-orange-600 uppercase">PENDIENTE FÍSICO</SelectItem>
+                  <SelectItem value="ENTREGADO" className="font-bold text-green-600 uppercase">ENTREGADO FÍSICO</SelectItem>
+                  <SelectItem value="TODOS" className="font-bold">TODOS LOS REGISTROS</SelectItem>
                 </SelectContent>
               </Select>
               <Popover>
@@ -440,7 +448,7 @@ export default function DashboardPage() {
                     <TableRow className="hover:bg-transparent border-b-2">
                       <TableHead className="w-[50px] py-6 px-4 text-center">
                         <Checkbox 
-                          checked={groupedRegistros.length > 0 && Array.from(selectedIds).length === registros.length}
+                          checked={groupedRegistros.length > 0 && Array.from(selectedIds).length === registros.filter(r => groupedRegistros.some(g => g.numeroRegistro === r.numeroRegistro)).length}
                           onCheckedChange={handleSelectAll}
                         />
                       </TableHead>
@@ -455,7 +463,7 @@ export default function DashboardPage() {
                   </TableHeader>
                   <TableBody>
                     {pagedGroups.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No se encontraron registros.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No hay facturas pendientes que mostrar.</TableCell></TableRow>
                     ) : (
                       pagedGroups.map((grupo) => {
                         const isExpanded = expandedRows.has(grupo.numeroRegistro);
@@ -559,7 +567,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between px-10 py-6 bg-gray-50 border-t border-gray-100">
                   <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
                     Página {currentPage} de {totalPages} 
-                    <span className="ml-4 opacity-60">(Mostrando {groupedRegistros.length} facturas agrupadas)</span>
+                    <span className="ml-4 opacity-60">(Mostrando {groupedRegistros.length} facturas filtradas)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} className="h-10 px-4 font-black border-2"><ChevronLeft className="h-4 w-4 mr-2" /> ANTERIOR</Button>
