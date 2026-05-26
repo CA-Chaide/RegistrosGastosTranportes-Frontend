@@ -57,7 +57,6 @@ export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  // Ahora guardamos numeroRegistro en lugar de ID de item individual
   const [entregadosFisicos, setEntregadosFisicos] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
@@ -461,6 +460,14 @@ export default function DashboardPage() {
                                             </TableRow>
                                           ))}
                                         </TableBody>
+                                        <tfoot className="bg-gray-50 border-t">
+                                          <TableRow className="hover:bg-transparent">
+                                            <TableCell colSpan={3} className="text-right font-black text-[10px] uppercase tracking-widest py-3">Total de la Factura</TableCell>
+                                            <TableCell className="text-right pr-8 font-black text-xl text-primary tracking-tighter">
+                                              ${grupo.valorTotalAcumulado.toFixed(2)}
+                                            </TableCell>
+                                          </TableRow>
+                                        </tfoot>
                                       </Table>
                                     </div>
                                   </div>
