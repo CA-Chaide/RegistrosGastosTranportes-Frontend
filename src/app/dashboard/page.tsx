@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { serviciosService } from '@/services/servicios.service';
-import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText, X } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
@@ -65,10 +65,7 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>("TODOS");
   const [invoiceFilter, setInvoiceFilter] = useState<string>("");
   
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: new Date(),
-    to: new Date(),
-  });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   useEffect(() => {
     const loadData = async () => {
@@ -77,7 +74,6 @@ export default function DashboardPage() {
         const resp = await serviciosService.getRegistrosFacturas();
         setRegistros(resp.data || []);
 
-        // Cargar estados físicos de localStorage
         const storedFisicos = localStorage.getItem(FISICOS_STORAGE_KEY);
         if (storedFisicos) {
           try {
@@ -214,8 +210,6 @@ export default function DashboardPage() {
     if (checked) next.add(numeroRegistro);
     else next.delete(numeroRegistro);
     setEntregadosFisicos(next);
-    
-    // Persistencia en localStorage
     localStorage.setItem(FISICOS_STORAGE_KEY, JSON.stringify(Array.from(next)));
   };
 
@@ -224,8 +218,6 @@ export default function DashboardPage() {
   const handleDownloadPDF = () => {
     if (itemsParaExportar.length === 0) return;
     const doc = new jspdf();
-    
-    // Agrupar los items seleccionados por numeroRegistro para generar páginas individuales
     const groupedExport = itemsParaExportar.reduce((acc, item) => {
       if (!acc[item.numeroRegistro]) acc[item.numeroRegistro] = [];
       acc[item.numeroRegistro].push(item);
@@ -236,12 +228,10 @@ export default function DashboardPage() {
 
     registroIds.forEach((regId, index) => {
       if (index > 0) doc.addPage();
-      
       const items = groupedExport[regId];
       const firstItem = items[0];
       const totalFactura = items.reduce((sum, i) => sum + i.valorTotal, 0);
 
-      // Encabezado de la página
       doc.setFontSize(18);
       doc.setTextColor(0, 85, 184);
       doc.text('CHAIDE - DETALLE DE FACTURACIÓN', 14, 22);
@@ -258,7 +248,6 @@ export default function DashboardPage() {
       doc.setTextColor(esFisico ? 22 : 220, esFisico ? 163 : 38, esFisico ? 74 : 38);
       doc.text(`ENTREGA FÍSICA: ${esFisico ? 'CONFIRMADA' : 'PENDIENTE'}`, 14, 58);
 
-      // Tabla de transportes para esta factura
       const tableData = items.map(reg => [
         reg.numeroGasto || 'N/A', 
         reg.transporte || 'N/A', 
@@ -278,7 +267,6 @@ export default function DashboardPage() {
         margin: { top: 64 },
       });
 
-      // Pie de página
       doc.setFontSize(8);
       doc.setTextColor(150);
       doc.text(`Página ${index + 1} de ${registroIds.length} - Generado por Chaide RGT v1.0`, 14, doc.internal.pageSize.height - 10);
@@ -310,7 +298,8 @@ export default function DashboardPage() {
     setInvoiceFilter("");
   };
 
-  // Cálculo de indicadores por facturas únicas
+  const anyFilterActive = invoiceFilter.trim() !== "" || statusFilter !== "TODOS" || dateRange !== undefined;
+
   const totalFacturasRegistradas = new Set(registros.map(r => r.numeroRegistro)).size;
   const totalFacturasProcesadas = new Set(registros.filter(r => r.estado.toUpperCase() === 'PROCESADO').map(r => r.numeroRegistro)).size;
   const totalFacturasPendientesFisico = new Set(registros.filter(r => !entregadosFisicos.has(r.numeroRegistro)).map(r => r.numeroRegistro)).size;
@@ -322,6 +311,15 @@ export default function DashboardPage() {
           <h2 className="text-4xl font-black tracking-tighter text-primary uppercase">Panel de Control Operativo</h2>
           <p className="text-muted-foreground font-medium text-lg">Resumen detallado de facturación y transportes registrados.</p>
         </div>
+        {anyFilterActive && (
+          <Button 
+            variant="destructive" 
+            onClick={handleClearFilter}
+            className="h-12 font-black uppercase tracking-widest shadow-lg animate-in zoom-in-95 duration-200"
+          >
+            <RotateCcw className="mr-2 h-5 w-5" /> LIMPIAR FILTROS
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -380,7 +378,20 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-center gap-4">
               <div className="relative w-[220px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/60" />
-                <Input placeholder="FILTRAR POR FACTURA" value={invoiceFilter} onChange={(e) => setInvoiceFilter(e.target.value)} className="h-12 pl-10 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight bg-white" />
+                <Input 
+                  placeholder="FILTRAR POR FACTURA" 
+                  value={invoiceFilter} 
+                  onChange={(e) => setInvoiceFilter(e.target.value)} 
+                  className="h-12 pl-10 pr-10 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight bg-white" 
+                />
+                {invoiceFilter && (
+                  <button 
+                    onClick={() => setInvoiceFilter("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[200px] h-12 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight bg-white">
@@ -405,7 +416,7 @@ export default function DashboardPage() {
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-3xl overflow-hidden" align="end">
                   <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={es} className="p-6 bg-white" />
                   <div className="p-4 bg-gray-50 border-t flex justify-end">
-                     <Button variant="ghost" size="sm" onClick={handleClearFilter} className="text-xs font-bold text-primary"><RotateCcw className="mr-2 h-3 w-3" /> RESTABLECER</Button>
+                     <Button variant="ghost" size="sm" onClick={() => setDateRange(undefined)} className="text-xs font-bold text-primary"><RotateCcw className="mr-2 h-3 w-3" /> RESTABLECER FECHAS</Button>
                   </div>
                 </PopoverContent>
               </Popover>
