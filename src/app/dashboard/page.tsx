@@ -95,10 +95,12 @@ export default function DashboardPage() {
         matchesDate = isWithinInterval(fechaReg, { start, end });
       }
 
-      // Filtrado por estado
+      // Filtrado por estado FÍSICO (Check)
       let matchesStatus = true;
-      if (statusFilter !== "TODOS") {
-        matchesStatus = reg.estado.toUpperCase() === statusFilter;
+      if (statusFilter === "ENTREGADO") {
+        matchesStatus = entregadosFisicos.has(reg.id);
+      } else if (statusFilter === "PENDIENTE") {
+        matchesStatus = !entregadosFisicos.has(reg.id);
       }
 
       // Filtrado por factura
@@ -109,7 +111,7 @@ export default function DashboardPage() {
 
       return matchesDate && matchesStatus && matchesInvoice;
     });
-  }, [registros, dateRange, statusFilter, invoiceFilter]);
+  }, [registros, dateRange, statusFilter, invoiceFilter, entregadosFisicos]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -185,9 +187,6 @@ export default function DashboardPage() {
     doc.setTextColor(100);
     doc.text(`Periodo: ${dateStr}`, 14, 30);
     doc.text(`Items seleccionados: ${itemsParaExportar.length}`, 14, 36);
-    if (statusFilter !== "TODOS") {
-      doc.text(`Estado: ${statusFilter}`, 14, 42);
-    }
 
     const tableData = itemsParaExportar.map(reg => [
       format(new Date(reg.fechaRegistro), "dd/MM/yyyy HH:mm"),
@@ -200,7 +199,7 @@ export default function DashboardPage() {
     ]);
 
     autoTable(doc, {
-      startY: statusFilter !== "TODOS" ? 48 : 42,
+      startY: 42,
       head: [['Fecha', 'N° Gasto', 'N° Factura', 'Transporte', 'Monto', 'Estado', 'Físico']],
       body: tableData,
       foot: [[
@@ -270,7 +269,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        {/* Card 1: Transportes (Blue) */}
         <Card className="border-l-8 border-l-blue-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Transportes</CardTitle>
@@ -284,7 +282,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Card 2: Pendientes (Orange) */}
         <Card className="border-l-8 border-l-orange-500 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Pendientes</CardTitle>
@@ -300,7 +297,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Card 3: Registros Exitosos (Green) */}
         <Card className="border-l-8 border-l-green-600 shadow-lg hover:shadow-xl transition-shadow border-y-0 border-r-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Registros Exitosos</CardTitle>
@@ -332,7 +328,6 @@ export default function DashboardPage() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-4">
-              {/* Filtro por Factura */}
               <div className="relative w-[220px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/60" />
                 <Input 
@@ -343,24 +338,22 @@ export default function DashboardPage() {
                 />
               </div>
 
-              {/* Filtro por Estado */}
               <div className="flex items-center gap-2">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[180px] h-12 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight text-gray-700 bg-white">
+                  <SelectTrigger className="w-[200px] h-12 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight text-gray-700 bg-white">
                     <div className="flex items-center gap-2">
                       <Filter className="h-4 w-4 text-primary/60" />
-                      <SelectValue placeholder="ESTADO" />
+                      <SelectValue placeholder="FILTRAR FÍSICO" />
                     </div>
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-none shadow-2xl">
-                    <SelectItem value="TODOS" className="font-bold">TODOS LOS ESTADOS</SelectItem>
-                    <SelectItem value="PROCESADO" className="font-bold text-green-600 uppercase">PROCESADO</SelectItem>
-                    <SelectItem value="PENDIENTE" className="font-bold text-orange-600 uppercase">PENDIENTE</SelectItem>
+                    <SelectItem value="TODOS" className="font-bold">TODOS LOS REGISTROS</SelectItem>
+                    <SelectItem value="ENTREGADO" className="font-bold text-green-600 uppercase">ENTREGADO FÍSICO</SelectItem>
+                    <SelectItem value="PENDIENTE" className="font-bold text-orange-600 uppercase">PENDIENTE FÍSICO</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Filtro por Fecha */}
               <Popover>
                 <PopoverTrigger asChild>
                   <Button 
