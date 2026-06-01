@@ -70,6 +70,18 @@ export default function DashboardPage() {
     to: new Date(),
   });
 
+  // Helper para buscar valores de forma robusta e insensible a mayúsculas
+  const getRobustValue = (obj: any, keys: string[]) => {
+    const objKeys = Object.keys(obj);
+    for (const key of keys) {
+      const foundKey = objKeys.find(k => k.toLowerCase() === key.toLowerCase());
+      if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null && obj[foundKey] !== '') {
+        return obj[foundKey];
+      }
+    }
+    return undefined;
+  };
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -77,34 +89,34 @@ export default function DashboardPage() {
       const user = storedUser ? JSON.parse(storedUser) : null;
       const proveedorId = String(user?.usuario || user?.codigo_usuario || '');
 
-      // Usando getAll como se solicitó para recuperar las facturas registradas
       const resp = await registroGastosTransporte.getAll();
       const rawData = resp.data || [];
       
       const mappedData: RegistroFactura[] = rawData.map((item: any, idx: number) => {
-        // Mapeo robusto de valores para evitar totales en cero
-        const val = item.ValorGasto ?? item.valorGasto ?? item.VALOR ?? item.valor ?? item.Monto ?? item.monto ?? item.valor_gasto ?? 0;
-        const gasto = item.GastoTransporte || item.numGasto || item.NumGasto || item.Gasto || item.gasto || 'N/A';
+        // Mapeo robusto de valor monetario
+        const valRaw = getRobustValue(item, ['ValorGasto', 'valorGasto', 'VALOR', 'valor', 'Monto', 'monto', 'valor_gasto']);
+        const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw);
+        
+        // Mapeo robusto de número de gasto
+        const gasto = getRobustValue(item, ['GastoTransporte', 'gastoTransporte', 'NumGasto', 'numGasto', 'Gasto', 'gasto', 'num_gasto']);
+        
+        // Mapeo robusto de transporte
+        const transporte = getRobustValue(item, ['Transporte', 'transporte', 'Vehiculo', 'vehiculo']);
         
         return {
           id: String(item.id || idx),
           numeroRegistro: item.NumFactura || 'N/A',
           codigoProveedor: String(item.AgenteTransporte || proveedorId),
           numeroFactura: item.NumFactura || '',
-          valorTotal: Number(val) || 0,
+          valorTotal: valNumeric || 0,
           fechaRegistro: item.FechaRegistro || new Date().toISOString(),
           estado: item.Estado || 'A',
-          numeroGasto: String(gasto),
-          transporte: item.Transporte || 'N/A'
+          numeroGasto: String(gasto || 'N/A'),
+          transporte: String(transporte || 'N/A')
         };
       });
 
-      // Filtrado opcional por transportista si es necesario (el dashboard suele ser personal)
-      const dataForUser = mappedData.filter(reg => 
-        !proveedorId || String(reg.codigoProveedor) === proveedorId
-      );
-
-      setRegistros(dataForUser);
+      setRegistros(mappedData);
 
       const storedFisicos = localStorage.getItem(FISICOS_STORAGE_KEY);
       if (storedFisicos) {
@@ -473,8 +485,8 @@ export default function DashboardPage() {
                         />
                       </TableHead>
                       <TableHead className="w-[40px]"></TableHead>
-                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest py-6 px-4">Fecha Registro</TableHead>
                       <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
+                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest py-6 px-4">Fecha Registro</TableHead>
                       <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto Total</TableHead>
                       <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-6 tracking-widest">Físico</TableHead>
                       <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
@@ -501,14 +513,14 @@ export default function DashboardPage() {
                               <TableCell className="text-center" onClick={() => toggleRow(grupo.keyFactura)}>
                                 {isExpanded ? <ChevronDown className="h-6 w-6 text-primary" /> : <ChevronRight className="h-6 w-6 text-muted-foreground" />}
                               </TableCell>
+                              <TableCell className="text-center font-bold text-gray-600" onClick={() => toggleRow(grupo.keyFactura)}>
+                                {formatInvoice(grupo.numeroFactura)}
+                              </TableCell>
                               <TableCell className="py-6 px-4 text-center" onClick={() => toggleRow(grupo.keyFactura)}>
                                 <div className="flex flex-col">
                                   <span className="font-black text-sm text-gray-900">{format(new Date(grupo.fechaRegistro), "dd/MM/yyyy")}</span>
                                   <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">{format(new Date(grupo.fechaRegistro), "HH:mm 'HRS'")}</span>
                                 </div>
-                              </TableCell>
-                              <TableCell className="text-center font-bold text-gray-600" onClick={() => toggleRow(grupo.keyFactura)}>
-                                {formatInvoice(grupo.numeroFactura)}
                               </TableCell>
                               <TableCell className="text-right px-10" onClick={() => toggleRow(grupo.keyFactura)}>
                                 <span className="text-xl font-black text-primary tracking-tighter">${grupo.valorTotalAcumulado.toFixed(2)}</span>
@@ -607,4 +619,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

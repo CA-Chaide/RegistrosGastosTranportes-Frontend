@@ -45,6 +45,18 @@ export default function ConsultaRegistrosPage() {
     fetchRegistros();
   }, []);
 
+  // Helper para buscar valores de forma robusta e insensible a mayúsculas
+  const getRobustValue = (obj: any, keys: string[]) => {
+    const objKeys = Object.keys(obj);
+    for (const key of keys) {
+      const foundKey = objKeys.find(k => k.toLowerCase() === key.toLowerCase());
+      if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null && obj[foundKey] !== '') {
+        return obj[foundKey];
+      }
+    }
+    return undefined;
+  };
+
   const fetchRegistros = async () => {
     setLoading(true);
     try {
@@ -52,20 +64,26 @@ export default function ConsultaRegistrosPage() {
       const rawData = resp.data || [];
       
       const mappedData: RegistroFactura[] = rawData.map((item: any) => {
-        // Mapeo robusto de valores buscando en múltiples posibles nombres de propiedad del backend
-        const val = item.ValorGasto ?? item.valorGasto ?? item.VALOR ?? item.valor ?? item.Monto ?? item.monto ?? item.valor_gasto ?? 0;
-        const gasto = item.GastoTransporte || item.numGasto || item.NumGasto || item.Gasto || item.gasto || 'N/A';
+        // Mapeo robusto de valor monetario
+        const valRaw = getRobustValue(item, ['ValorGasto', 'valorGasto', 'VALOR', 'valor', 'Monto', 'monto', 'valor_gasto']);
+        const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw);
+        
+        // Mapeo robusto de número de gasto
+        const gasto = getRobustValue(item, ['GastoTransporte', 'gastoTransporte', 'NumGasto', 'numGasto', 'Gasto', 'gasto', 'num_gasto']);
+        
+        // Mapeo robusto de transporte
+        const transporte = getRobustValue(item, ['Transporte', 'transporte', 'Vehiculo', 'vehiculo']);
 
         return {
           id: String(item.id || crypto.randomUUID()),
           numeroRegistro: item.NumFactura || 'N/A',
           codigoProveedor: item.AgenteTransporte || '',
           numeroFactura: item.NumFactura || '',
-          valorTotal: Number(val) || 0,
+          valorTotal: valNumeric || 0,
           fechaRegistro: item.FechaRegistro || new Date().toISOString(),
           estado: item.Estado === 'A' ? 'Procesado' : (item.Estado || 'Pendiente'),
-          numeroGasto: String(gasto),
-          transporte: item.Transporte || item.transporte || 'N/A'
+          numeroGasto: String(gasto || 'N/A'),
+          transporte: String(transporte || 'N/A')
         };
       });
       
@@ -323,4 +341,3 @@ export default function ConsultaRegistrosPage() {
     </div>
   );
 }
-
