@@ -51,17 +51,23 @@ export default function ConsultaRegistrosPage() {
       const resp = await registroGastosTransporte.getAll();
       const rawData = resp.data || [];
       
-      const mappedData: RegistroFactura[] = rawData.map((item: any) => ({
-        id: String(item.id || crypto.randomUUID()),
-        numeroRegistro: item.NumFactura || 'N/A',
-        codigoProveedor: item.AgenteTransporte || '',
-        numeroFactura: item.NumFactura || '',
-        valorTotal: parseFloat(item.ValorGasto || item.valor || 0),
-        fechaRegistro: item.FechaRegistro || new Date().toISOString(),
-        estado: item.Estado === 'A' ? 'Procesado' : (item.Estado || 'Pendiente'),
-        numeroGasto: item.GastoTransporte || item.NumGasto || item.Transporte || 'N/A',
-        transporte: item.Transporte || item.transporte || 'N/A'
-      }));
+      const mappedData: RegistroFactura[] = rawData.map((item: any) => {
+        // Mapeo robusto de valores buscando en múltiples posibles nombres de propiedad del backend
+        const val = item.ValorGasto ?? item.valorGasto ?? item.VALOR ?? item.valor ?? item.Monto ?? item.monto ?? item.valor_gasto ?? 0;
+        const gasto = item.GastoTransporte || item.numGasto || item.NumGasto || item.Gasto || item.gasto || 'N/A';
+
+        return {
+          id: String(item.id || crypto.randomUUID()),
+          numeroRegistro: item.NumFactura || 'N/A',
+          codigoProveedor: item.AgenteTransporte || '',
+          numeroFactura: item.NumFactura || '',
+          valorTotal: Number(val) || 0,
+          fechaRegistro: item.FechaRegistro || new Date().toISOString(),
+          estado: item.Estado === 'A' ? 'Procesado' : (item.Estado || 'Pendiente'),
+          numeroGasto: String(gasto),
+          transporte: item.Transporte || item.transporte || 'N/A'
+        };
+      });
       
       setRegistros(mappedData);
     } catch (error) {
@@ -317,3 +323,4 @@ export default function ConsultaRegistrosPage() {
     </div>
   );
 }
+

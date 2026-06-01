@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { serviciosService } from '@/services/servicios.service';
+import { registroGastosTransporte } from '@/services/registroGastosTransporte.service';
 import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText, X, Hash } from 'lucide-react';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -75,39 +75,36 @@ export default function DashboardPage() {
     try {
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
-      const proveedorId = user?.usuario || user?.codigo_usuario || '';
+      const proveedorId = String(user?.usuario || user?.codigo_usuario || '');
 
-      if (!proveedorId) {
-        setLoading(false);
-        return;
-      }
-
-      // Parámetros para el servicio getDashboardByInfo
-      const fechaInicioStr = dateRange?.from ? format(startOfDay(dateRange.from), 'yyyy-MM-dd') : '2000-01-01';
-      const fechaFinStr = dateRange?.to ? format(endOfDay(dateRange.to), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-
-      const resp = await serviciosService.getInformacionGastosTransportes(
-        'A', // O el estado que se requiera
-        fechaInicioStr,
-        fechaFinStr,
-        String(proveedorId)
-      );
-
+      // Usando getAll como se solicitó para recuperar las facturas registradas
+      const resp = await registroGastosTransporte.getAll();
       const rawData = resp.data || [];
       
-      const mappedData: RegistroFactura[] = rawData.map((item: any, idx: number) => ({
-        id: String(item.id || idx),
-        numeroRegistro: item.NumFactura || 'N/A',
-        codigoProveedor: String(proveedorId),
-        numeroFactura: item.NumFactura || '',
-        valorTotal: parseFloat(item.ValorGasto || item.valor || 0),
-        fechaRegistro: item.FechaRegistro || new Date().toISOString(),
-        estado: item.Estado || 'A',
-        numeroGasto: item.GastoTransporte || item.NumGasto || 'N/A',
-        transporte: item.Transporte || 'N/A'
-      }));
+      const mappedData: RegistroFactura[] = rawData.map((item: any, idx: number) => {
+        // Mapeo robusto de valores para evitar totales en cero
+        const val = item.ValorGasto ?? item.valorGasto ?? item.VALOR ?? item.valor ?? item.Monto ?? item.monto ?? item.valor_gasto ?? 0;
+        const gasto = item.GastoTransporte || item.numGasto || item.NumGasto || item.Gasto || item.gasto || 'N/A';
+        
+        return {
+          id: String(item.id || idx),
+          numeroRegistro: item.NumFactura || 'N/A',
+          codigoProveedor: String(item.AgenteTransporte || proveedorId),
+          numeroFactura: item.NumFactura || '',
+          valorTotal: Number(val) || 0,
+          fechaRegistro: item.FechaRegistro || new Date().toISOString(),
+          estado: item.Estado || 'A',
+          numeroGasto: String(gasto),
+          transporte: item.Transporte || 'N/A'
+        };
+      });
 
-      setRegistros(mappedData);
+      // Filtrado opcional por transportista si es necesario (el dashboard suele ser personal)
+      const dataForUser = mappedData.filter(reg => 
+        !proveedorId || String(reg.codigoProveedor) === proveedorId
+      );
+
+      setRegistros(dataForUser);
 
       const storedFisicos = localStorage.getItem(FISICOS_STORAGE_KEY);
       if (storedFisicos) {
@@ -122,7 +119,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [dateRange]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -160,7 +157,14 @@ export default function DashboardPage() {
         const cleanInvoice = invoiceFilter.toLowerCase().replace(/-/g, '');
         matchesInvoice = reg.numeroFactura.toLowerCase().includes(cleanInvoice);
       }
-      return matchesInvoice;
+      
+      let matchesDate = true;
+      if (dateRange?.from && dateRange?.to) {
+        const d = new Date(reg.fechaRegistro);
+        matchesDate = d >= startOfDay(dateRange.from) && d <= endOfDay(dateRange.to);
+      }
+
+      return matchesInvoice && matchesDate;
     });
 
     baseFiltrada.forEach(reg => {
@@ -186,7 +190,7 @@ export default function DashboardPage() {
       if (statusFilter === "PENDIENTE") return !isEntregado;
       return true;
     }).sort((a, b) => new Date(b.fechaRegistro).getTime() - new Date(a.fechaRegistro).getTime());
-  }, [registros, statusFilter, invoiceFilter, entregadosFisicos]);
+  }, [registros, statusFilter, invoiceFilter, entregadosFisicos, dateRange]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -603,3 +607,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
