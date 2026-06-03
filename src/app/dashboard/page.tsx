@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -6,9 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { serviciosService } from '@/services/servicios.service';
-import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText, X, Hash } from 'lucide-react';
-import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { registroGastosTransporte } from '@/services/registroGastosTransporte.service';
+import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText, X, Hash, ShieldCheck } from 'lucide-react';
+import { format, subDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -87,44 +88,40 @@ export default function DashboardPage() {
     try {
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
-      const proveedorId = String(user?.usuario || user?.codigo_usuario || '');
+      const userCode = String(user?.usuario || user?.codigo_usuario || '');
 
-      const fechaInicio = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : format(subDays(new Date(), 90), "yyyy-MM-dd");
-      const fechaFin = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
-      
-      const apiEstado = statusFilter === "ENTREGADO" ? "E" : (statusFilter === "PENDIENTE" ? "A" : "T");
-
-      const resp = await serviciosService.getInformacionGastosTransportes(
-        apiEstado, 
-        fechaInicio, 
-        fechaFin, 
-        proveedorId
-      );
-      
+      // RECUPERAR DATOS USANDO getAll()
+      const resp = await registroGastosTransporte.getAll();
       const rawData = resp.data || [];
       
-      const mappedData: RegistroFactura[] = rawData.map((item: any, idx: number) => {
-        const valRaw = getRobustValue(item, ['ValorGasto', 'valor', 'monto', 'total', 'montoRubro']);
-        const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
-        
-        const gasto = getRobustValue(item, ['GastoTransporte', 'NumGasto', 'numeroGasto', 'gasto', 'secuencia']);
-        const transporte = getRobustValue(item, ['Transporte', 'numeroTransporte', 'vehiculo', 'matricula']);
-        const factura = getRobustValue(item, ['NumFactura', 'factura', 'referencia', 'numeroFactura']);
-        const estGasto = getRobustValue(item, ['Estado', 'estado_gasto', 'status']);
+      const mappedData: RegistroFactura[] = rawData
+        .filter((item: any) => {
+          const itemProv = String(getRobustValue(item, ['AgenteTransporte', 'codigoProveedor', 'proveedor']) || '');
+          // Filtramos por el usuario si existe un código de proveedor asociado al login
+          return userCode ? itemProv.includes(userCode) || userCode.includes(itemProv) : true;
+        })
+        .map((item: any, idx: number) => {
+          const valRaw = getRobustValue(item, ['ValorGasto', 'valor', 'monto', 'total', 'montoRubro']);
+          const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
+          
+          const gasto = getRobustValue(item, ['GastoTransporte', 'NumGasto', 'numeroGasto', 'gasto', 'secuencia']);
+          const transporte = getRobustValue(item, ['Transporte', 'numeroTransporte', 'vehiculo', 'matricula']);
+          const factura = getRobustValue(item, ['NumFactura', 'factura', 'referencia', 'numeroFactura']);
+          const estGasto = getRobustValue(item, ['Estado', 'estado_gasto', 'status']);
 
-        return {
-          id: String(item.id || idx),
-          numeroRegistro: String(factura || 'N/A'),
-          codigoProveedor: String(item.AgenteTransporte || proveedorId),
-          numeroFactura: String(factura || ''),
-          valorTotal: valNumeric,
-          fechaRegistro: item.FechaRegistro || new Date().toISOString(),
-          estado: item.Estado || 'A',
-          numeroGasto: String(gasto || 'N/A'),
-          transporte: String(transporte || 'N/A'),
-          estadoGasto: String(estGasto || 'N/A')
-        };
-      });
+          return {
+            id: String(item.id || idx),
+            numeroRegistro: String(factura || 'N/A'),
+            codigoProveedor: String(getRobustValue(item, ['AgenteTransporte', 'proveedor']) || userCode),
+            numeroFactura: String(factura || ''),
+            valorTotal: valNumeric,
+            fechaRegistro: item.FechaRegistro || item.fechaRegistro || new Date().toISOString(),
+            estado: item.Estado || item.estado || 'A',
+            numeroGasto: String(gasto || 'N/A'),
+            transporte: String(transporte || 'N/A'),
+            estadoGasto: String(estGasto || 'N/A')
+          };
+        });
 
       setRegistros(mappedData);
 
@@ -141,7 +138,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [dateRange, statusFilter]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -174,10 +171,21 @@ export default function DashboardPage() {
     const groups: Record<string, GrupoDashboard> = {};
     
     const baseFiltrada = registros.filter(reg => {
+      // Filtro por factura
       if (invoiceFilter.trim()) {
         const cleanInvoice = invoiceFilter.toLowerCase().replace(/-/g, '');
-        return reg.numeroFactura.toLowerCase().replace(/-/g, '').includes(cleanInvoice);
+        if (!reg.numeroFactura.toLowerCase().replace(/-/g, '').includes(cleanInvoice)) return false;
       }
+
+      // Filtro por rango de fechas
+      if (dateRange?.from && dateRange?.to) {
+        const regDate = new Date(reg.fechaRegistro);
+        if (!isWithinInterval(regDate, { 
+          start: startOfDay(dateRange.from), 
+          end: endOfDay(dateRange.to) 
+        })) return false;
+      }
+
       return true;
     });
 
@@ -204,7 +212,7 @@ export default function DashboardPage() {
       if (statusFilter === "PENDIENTE") return !isEntregado;
       return true;
     }).sort((a, b) => new Date(b.fechaRegistro).getTime() - new Date(a.fechaRegistro).getTime());
-  }, [registros, statusFilter, invoiceFilter, entregadosFisicos]);
+  }, [registros, statusFilter, invoiceFilter, entregadosFisicos, dateRange]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -473,7 +481,7 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-32 gap-6"><Loader2 className="h-14 w-14 animate-spin text-primary opacity-50" /><p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Sincronizando gastos operativos...</p></div>
+            <div className="flex flex-col items-center justify-center py-32 gap-6"><Loader2 className="h-14 w-14 animate-spin text-primary opacity-50" /><p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Recuperando registros históricos...</p></div>
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -496,7 +504,7 @@ export default function DashboardPage() {
                   </TableHeader>
                   <TableBody>
                     {pagedGroups.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No hay gastos que mostrar.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No hay gastos registrados que coincidan con los filtros.</TableCell></TableRow>
                     ) : (
                       pagedGroups.map((grupo) => {
                         const isExpanded = expandedRows.has(grupo.keyFactura);
@@ -574,7 +582,10 @@ export default function DashboardPage() {
                                                 </div>
                                               </TableCell>
                                               <TableCell className="text-center">
-                                                <span className="text-xs font-bold text-muted-foreground uppercase">{item.estadoGasto || 'N/A'}</span>
+                                                <div className="inline-flex items-center gap-2 text-primary">
+                                                  <ShieldCheck className="h-3.5 w-3.5 opacity-50" />
+                                                  <span className="text-xs font-bold uppercase">{item.estadoGasto || 'N/A'}</span>
+                                                </div>
                                               </TableCell>
                                               <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">${item.valorTotal.toFixed(2)}</TableCell>
                                             </TableRow>
