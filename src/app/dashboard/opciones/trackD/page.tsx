@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -22,6 +21,7 @@ interface RegistroFactura {
   estado: string;
   numeroGasto?: string;
   transporte?: string;
+  estadoGasto?: string;
 }
 
 interface GrupoRegistro {
@@ -77,6 +77,7 @@ export default function ConsultaRegistrosPage() {
         const gasto = getRobustValue(item, ['GastoTransporte', 'NumGasto', 'numeroGasto', 'gasto', 'secuencia']);
         const transporte = getRobustValue(item, ['Transporte', 'numeroTransporte', 'vehiculo', 'matricula']);
         const factura = getRobustValue(item, ['NumFactura', 'factura', 'referencia', 'numeroFactura']);
+        const estGasto = getRobustValue(item, ['Estado', 'estado_gasto', 'status']);
 
         return {
           id: String(item.id || idx),
@@ -87,7 +88,8 @@ export default function ConsultaRegistrosPage() {
           fechaRegistro: item.FechaRegistro || new Date().toISOString(),
           estado: item.Estado || 'A',
           numeroGasto: String(gasto || 'N/A'),
-          transporte: String(transporte || 'N/A')
+          transporte: String(transporte || 'N/A'),
+          estadoGasto: String(estGasto || 'N/A')
         };
       });
       
@@ -289,6 +291,7 @@ export default function ConsultaRegistrosPage() {
                                         <TableRow className="hover:bg-transparent">
                                           <TableHead className="font-black text-[10px] uppercase tracking-widest py-3 pl-8">N° Transporte</TableHead>
                                           <TableHead className="font-black text-[10px] uppercase text-center">N° Gasto del Transporte</TableHead>
+                                          <TableHead className="font-black text-[10px] uppercase text-center">Estado Gasto</TableHead>
                                           <TableHead className="font-black text-[10px] uppercase text-right pr-8">Valor del Transporte</TableHead>
                                         </TableRow>
                                       </TableHeader>
@@ -307,6 +310,9 @@ export default function ConsultaRegistrosPage() {
                                                 {item.numeroGasto || 'N/A'}
                                               </div>
                                             </TableCell>
+                                            <TableCell className="text-center">
+                                              <span className="text-xs font-bold text-muted-foreground uppercase">{item.estadoGasto || 'N/A'}</span>
+                                            </TableCell>
                                             <TableCell className="text-right pr-8">
                                                <div className="flex items-center justify-end gap-1 font-black text-lg tracking-tighter text-gray-900">
                                                   <DollarSign className="h-4 w-4 opacity-30" />
@@ -318,7 +324,7 @@ export default function ConsultaRegistrosPage() {
                                       </TableBody>
                                       <tfoot className="bg-gray-50 border-t-2">
                                         <TableRow className="hover:bg-transparent">
-                                          <TableCell colSpan={2} className="text-right font-black text-[10px] uppercase tracking-widest py-4">Total de Factura</TableCell>
+                                          <TableCell colSpan={3} className="text-right font-black text-[10px] uppercase tracking-widest py-4">Total de Factura</TableCell>
                                           <TableCell className="text-right pr-8 font-black text-2xl text-primary tracking-tighter">
                                             ${grupo.valorTotalAcumulado.toFixed(2)}
                                           </TableCell>

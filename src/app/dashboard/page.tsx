@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -41,6 +40,7 @@ interface RegistroFactura {
   estado: string;
   numeroGasto: string;
   transporte: string;
+  estadoGasto?: string;
 }
 
 interface GrupoDashboard {
@@ -110,6 +110,7 @@ export default function DashboardPage() {
         const gasto = getRobustValue(item, ['GastoTransporte', 'NumGasto', 'numeroGasto', 'gasto', 'secuencia']);
         const transporte = getRobustValue(item, ['Transporte', 'numeroTransporte', 'vehiculo', 'matricula']);
         const factura = getRobustValue(item, ['NumFactura', 'factura', 'referencia', 'numeroFactura']);
+        const estGasto = getRobustValue(item, ['Estado', 'estado_gasto', 'status']);
 
         return {
           id: String(item.id || idx),
@@ -120,7 +121,8 @@ export default function DashboardPage() {
           fechaRegistro: item.FechaRegistro || new Date().toISOString(),
           estado: item.Estado || 'A',
           numeroGasto: String(gasto || 'N/A'),
-          transporte: String(transporte || 'N/A')
+          transporte: String(transporte || 'N/A'),
+          estadoGasto: String(estGasto || 'N/A')
         };
       });
 
@@ -288,12 +290,12 @@ export default function DashboardPage() {
         reg.transporte || 'N/A', 
         reg.numeroGasto || 'N/A',
         `$${reg.valorTotal.toFixed(2)}`,
-        reg.estado
+        reg.estadoGasto || 'N/A'
       ]);
 
       autoTable(doc, {
         startY: 60,
-        head: [['N° Transporte', 'N° Gasto del Transporte', 'Monto del Rubro', 'Estado']],
+        head: [['N° Transporte', 'N° Gasto del Transporte', 'Monto del Rubro', 'Estado Gasto']],
         body: tableData,
         foot: [[{ content: 'VALOR TOTAL DE LA FACTURA', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: `$${totalFactura.toFixed(2)}`, styles: { halign: 'right', fontStyle: 'bold' } }, '']],
         headStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -319,7 +321,7 @@ export default function DashboardPage() {
       'N° Gasto': reg.numeroGasto || 'N/A',
       'Transporte': reg.transporte || 'N/A',
       'Monto': reg.valorTotal,
-      'Estado': reg.estado,
+      'Estado Gasto': reg.estadoGasto || 'N/A',
       'Entregado Físico': entregadosFisicos.has(reg.numeroFactura) ? 'SÍ' : 'NO'
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -552,6 +554,7 @@ export default function DashboardPage() {
                                             <TableHead className="w-[50px] text-center"></TableHead>
                                             <TableHead className="font-black text-[10px] uppercase py-3 pl-8">N° Transporte</TableHead>
                                             <TableHead className="font-black text-[10px] uppercase text-center">N° Gasto del Transporte</TableHead>
+                                            <TableHead className="font-black text-[10px] uppercase text-center">Estado Gasto</TableHead>
                                             <TableHead className="text-right font-black text-[10px] uppercase pr-8">Monto Parcial</TableHead>
                                           </TableRow>
                                         </TableHeader>
@@ -570,13 +573,16 @@ export default function DashboardPage() {
                                                   {item.numeroGasto || 'N/A'}
                                                 </div>
                                               </TableCell>
+                                              <TableCell className="text-center">
+                                                <span className="text-xs font-bold text-muted-foreground uppercase">{item.estadoGasto || 'N/A'}</span>
+                                              </TableCell>
                                               <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">${item.valorTotal.toFixed(2)}</TableCell>
                                             </TableRow>
                                           ))}
                                         </TableBody>
                                         <tfoot className="bg-gray-50 border-t">
                                           <TableRow className="hover:bg-transparent">
-                                            <TableCell colSpan={3} className="text-right font-black text-[10px] uppercase tracking-widest py-3">Valor Total de la Factura</TableCell>
+                                            <TableCell colSpan={4} className="text-right font-black text-[10px] uppercase tracking-widest py-3">Valor Total de la Factura</TableCell>
                                             <TableCell className="text-right pr-8 font-black text-xl text-primary tracking-tighter">
                                               ${grupo.valorTotalAcumulado.toFixed(2)}
                                             </TableCell>
