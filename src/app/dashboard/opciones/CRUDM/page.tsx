@@ -40,6 +40,18 @@ export default function RegistroFacturasPage() {
   const sumatoriaActual = listaTransportes.reduce((acc, item) => acc + item.valor, 0);
   const diferencia = valorTotalFactura - sumatoriaActual;
 
+  // Helper para buscar valores en objetos de respuesta de forma robusta
+  const getRobustValue = (obj: any, keys: string[]) => {
+    const objKeys = Object.keys(obj);
+    for (const key of keys) {
+      const foundKey = objKeys.find(k => k.toLowerCase() === key.toLowerCase());
+      if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null) {
+        return obj[foundKey];
+      }
+    }
+    return undefined;
+  };
+
   const formatNumeroFactura = (raw: string) => {
     const soloDigitos = raw.replace(/\D/g, '').slice(0, 15);
     if (soloDigitos.length <= 3) return soloDigitos;
@@ -61,7 +73,7 @@ export default function RegistroFacturasPage() {
     }
 
     if (!facturaRegex.test(facturaEntrada)) {
-      toast({ title: "Formato inválido", description: "Use 000-000000000000.", variant: "destructive" });
+      toast({ title: "Formato inválido", description: "Use el formato 000-000000000000.", variant: "destructive" });
       return;
     }
 
@@ -71,9 +83,12 @@ export default function RegistroFacturasPage() {
       const resp = await serviciosService.consultaFacturaTransporte(proveedorLimpio, facturaSinGuion);
       
       const items = resp?.data || resp || [];
-      if (Array.isArray(items) && items.length > 0) {
-        const item = items[0];
-        const total = parseFloat(item.Valor || item.VALOR || item.valor || item.monto || 0);
+      const itemsArray = Array.isArray(items) ? items : [items];
+
+      if (itemsArray.length > 0 && itemsArray[0]) {
+        const item = itemsArray[0];
+        const valRaw = getRobustValue(item, ['Valor', 'monto', 'valorTotal', 'VALOR', 'total']);
+        const total = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
         
         if (total <= 0) {
           toast({ title: "Valor inválido", description: "La factura no tiene un monto procesable.", variant: "destructive" });
@@ -82,22 +97,27 @@ export default function RegistroFacturasPage() {
 
         setValorTotalFactura(total);
         setFacturaValidada(true);
-        toast({ title: "Factura validada", description: `Monto total: $${total.toFixed(2)}` });
+        toast({ title: "Factura validada", description: `Monto total a liquidar: $${total.toFixed(2)}` });
       } else {
-        toast({ title: "No encontrada", description: "Verifique código y factura.", variant: "destructive" });
+        toast({ title: "Factura no encontrada", description: "Verifique el código del proveedor y el número de factura.", variant: "destructive" });
       }
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Error en la consulta.", variant: "destructive" });
+      toast({ title: "Error de consulta", description: err.message || "Error al conectar con el servicio.", variant: "destructive" });
     } finally {
       setLoadingFactura(false);
     }
   };
 
   const handleAgregarTransporte = async () => {
-    const valorABuscar = transporteActual.trim();
+    let valorABuscar = transporteActual.trim();
     const proveedor = codigoProveedor.trim();
     
     if (!valorABuscar) return;
+    
+    // Auto-formateo: Completar con ceros a la izquierda hasta 10 dígitos (común en sistemas Chaide)
+    if (valorABuscar.length < 10 && /^\d+$/.test(valorABuscar)) {
+      valorABuscar = valorABuscar.padStart(10, '0');
+    }
     
     if (listaTransportes.find(t => t.numeroTransporte === valorABuscar)) {
       toast({ title: "Duplicado", description: `El transporte ${valorABuscar} ya está en la lista.`, variant: "destructive" });
@@ -108,23 +128,25 @@ export default function RegistroFacturasPage() {
     try {
       const resp = await serviciosService.consultaTransporte(valorABuscar, proveedor);
       const items = resp?.data || resp || [];
+      const itemsArray = Array.isArray(items) ? items : [];
 
-      if (Array.isArray(items) && items.length > 0) {
-        const item = items[0];
+      if (itemsArray.length > 0) {
+        const item = itemsArray[0];
         
-        const rawEstatus = item.Estatus || item.estado || item.ESTADO || item.estatus || 'A';
+        const rawEstatus = getRobustValue(item, ['Estatus', 'Estado', 'ESTADO', 'estatus']) || 'A';
         const estatus = String(rawEstatus).toUpperCase();
         
-        if (estatus === 'C') {
-          toast({ title: "Concluido", description: `El transporte ${valorABuscar} ya está finalizado.`, variant: "destructive" });
+        if (estatus === 'C' || estatus === 'CONCLUIDO') {
+          toast({ title: "Transporte Concluido", description: `El transporte ${valorABuscar} ya ha sido finalizado previamente.`, variant: "destructive" });
           setLoadingTransporte(false);
           return;
         }
 
-        const itemValor = parseFloat(item.valorGasto || item.ValorGasto || item.VALOR || item.valor || item.Monto || 0);
+        const valRaw = getRobustValue(item, ['valorGasto', 'VALOR', 'valor', 'monto', 'ValorGasto']);
+        const itemValor = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
         
-        const gasto = item.NumeroGasto || item.numeroGasto || item.Gasto || item.GASTO || item.num_gasto || item.NUMERO_GASTO || item.secuencia || 'N/A';
-        const placa = item.Placa || item.placa || item.PLACA || item.Vehiculo || item.vehiculo || item.VEHICULO || item.PlacaVehiculo || item.placa_vehiculo || item.Matricula || 'N/A';
+        const gasto = getRobustValue(item, ['NumeroGasto', 'Gasto', 'num_gasto', 'secuencia', 'numeroGasto']) || 'N/A';
+        const placa = getRobustValue(item, ['Placa', 'Vehiculo', 'Matricula', 'placa_vehiculo', 'PLACA']) || 'N/A';
 
         const nuevoTransporte: TransportItem = {
           id: crypto.randomUUID(),
@@ -140,16 +162,16 @@ export default function RegistroFacturasPage() {
         
         if (transportInputRef.current) transportInputRef.current.focus();
         
-        toast({ title: "Agregado", description: `Transporte ${valorABuscar} vinculado.` });
+        toast({ title: "Transporte agregado", description: `Vínculo exitoso con transporte ${valorABuscar}.` });
       } else {
         toast({ 
-          title: "No encontrado", 
-          description: "El número que se ingresó ya se encuentra ingresado en otra factura.", 
+          title: "Transporte no disponible", 
+          description: "No se encontró el transporte o ya fue liquidado en otra factura. Verifique los datos.", 
           variant: "destructive" 
         });
       }
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Error en consulta.", variant: "destructive" });
+      toast({ title: "Error", description: err.message || "Error al consultar el transporte.", variant: "destructive" });
     } finally {
       setLoadingTransporte(false);
     }
@@ -157,7 +179,7 @@ export default function RegistroFacturasPage() {
 
   const handleFinalizarRegistro = async () => {
     if (Math.abs(diferencia) > 0.01) {
-      toast({ title: "Descuadre", description: "La sumatoria debe coincidir con el total de la factura.", variant: "destructive" });
+      toast({ title: "Descuadre de montos", description: "La sumatoria de transportes debe coincidir exactamente con el total de la factura.", variant: "destructive" });
       return;
     }
 
@@ -172,8 +194,9 @@ export default function RegistroFacturasPage() {
       
       const numeroRegistro = resp.data?.numeroRegistroUnico || resp.numeroRegistroUnico;
       setRegistroCompletado(numeroRegistro);
+      toast({ title: "Registro completado", description: "Se ha generado el número único de registro." });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Error al procesar el registro.", variant: "destructive" });
+      toast({ title: "Error de registro", description: err.message || "No se pudo procesar el registro final.", variant: "destructive" });
     } finally {
       setLoadingRegistro(false);
     }
@@ -220,7 +243,7 @@ export default function RegistroFacturasPage() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col gap-2 border-l-8 border-primary pl-6 py-2">
         <h1 className="text-4xl font-black tracking-tighter text-primary uppercase">Módulo de Registro de Gastos</h1>
-        <p className="text-muted-foreground text-xl font-medium">Gestión de facturas de transporte.</p>
+        <p className="text-muted-foreground text-xl font-medium">Gestión de facturas de transporte y asignación de rubros.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -233,11 +256,11 @@ export default function RegistroFacturasPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="codigo" className="font-bold text-sm uppercase tracking-wide">Código Proveedor</Label>
+              <Label htmlFor="codigo" className="font-bold text-sm uppercase tracking-wide text-muted-foreground">Código Proveedor</Label>
               <Input id="codigo" placeholder="Ej: 5220802" value={codigoProveedor} disabled={facturaValidada} onChange={(e) => setCodigoProveedor(e.target.value)} className="text-xl py-6 font-semibold" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="factura" className="font-bold text-sm uppercase tracking-wide">Número de Factura</Label>
+              <Label htmlFor="factura" className="font-bold text-sm uppercase tracking-wide text-muted-foreground">Número de Factura</Label>
               <Input id="factura" placeholder="000-000000000000" value={numeroFactura} disabled={facturaValidada} onChange={handleNumeroFacturaChange} inputMode="numeric" maxLength={16} className="text-xl py-6 font-mono tracking-widest" />
             </div>
             {!facturaValidada ? (
@@ -247,7 +270,7 @@ export default function RegistroFacturasPage() {
               </Button>
             ) : (
               <div className="bg-white p-6 rounded-2xl border-2 border-primary/20 space-y-3 shadow-inner">
-                <span className="text-[10px] font-black text-primary uppercase tracking-widest">Valor de Factura</span>
+                <span className="text-[10px] font-black text-primary uppercase tracking-widest">Valor total de Factura</span>
                 <div className="flex justify-between items-end">
                   <span className="text-4xl font-black text-primary tracking-tighter">${valorTotalFactura.toFixed(2)}</span>
                   <Button variant="ghost" size="sm" onClick={() => { setFacturaValidada(false); setListaTransportes([]); }} className="text-xs font-bold text-destructive underline">Cambiar</Button>
@@ -264,7 +287,7 @@ export default function RegistroFacturasPage() {
               Detalle de Transportes
             </CardTitle>
             <div className="text-right">
-               <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Sumatoria</span>
+               <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Sumatoria Parcial</span>
                <p className="text-3xl font-black text-primary tracking-tighter">${sumatoriaActual.toFixed(2)}</p>
             </div>
           </CardHeader>
@@ -272,7 +295,7 @@ export default function RegistroFacturasPage() {
             <div className="flex gap-4">
               <Input 
                 ref={transportInputRef}
-                placeholder="Ingrese Transporte y presione Enter" 
+                placeholder="Ingrese N° de Transporte y presione Enter" 
                 value={transporteActual}
                 disabled={loadingTransporte}
                 onChange={(e) => setTransporteActual(e.target.value)}
@@ -282,9 +305,9 @@ export default function RegistroFacturasPage() {
                     handleAgregarTransporte();
                   }
                 }}
-                className="text-xl py-7 shadow-sm border-2 font-bold"
+                className="text-xl py-7 shadow-sm border-2 font-bold focus:ring-green-500"
               />
-              <Button onClick={handleAgregarTransporte} disabled={loadingTransporte || !transporteActual.trim()} className="px-8 h-auto text-lg font-bold">
+              <Button onClick={handleAgregarTransporte} disabled={loadingTransporte || !transporteActual.trim()} className="px-8 h-auto text-lg font-bold bg-green-600 hover:bg-green-700">
                 {loadingTransporte ? <Loader2 className="h-6 w-6 animate-spin" /> : <Plus className="h-6 w-6" />}
               </Button>
             </div>
@@ -293,17 +316,17 @@ export default function RegistroFacturasPage() {
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
-                    <TableHead className="font-black text-xs uppercase">Transporte</TableHead>
-                    <TableHead className="font-black text-xs uppercase">Gasto</TableHead>
-                    <TableHead className="font-black text-xs uppercase">Placa</TableHead>
-                    <TableHead className="font-black text-xs uppercase">Estatus</TableHead>
-                    <TableHead className="text-right font-black text-xs uppercase">Monto</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-gray-500">Transporte</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-gray-500">Gasto</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-gray-500">Placa</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-gray-500">Estatus</TableHead>
+                    <TableHead className="text-right font-black text-xs uppercase text-gray-500">Monto</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {listaTransportes.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground font-medium">No hay transportes ingresados.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground font-medium italic">Esperando ingreso de transportes...</TableCell></TableRow>
                   ) : (
                     listaTransportes.map((item) => (
                       <TableRow key={item.id} className="hover:bg-primary/5 group">
@@ -311,7 +334,7 @@ export default function RegistroFacturasPage() {
                         <TableCell className="font-bold text-muted-foreground">{item.numeroGasto}</TableCell>
                         <TableCell className="font-black text-gray-800">{item.placa}</TableCell>
                         <TableCell>
-                          <Badge className={item.estatus === 'A' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
+                          <Badge className={item.estatus === 'A' || item.estatus === 'ACTIVO' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
                             {item.estatus}
                           </Badge>
                         </TableCell>
@@ -329,15 +352,15 @@ export default function RegistroFacturasPage() {
             <div className={`flex flex-col md:flex-row justify-between items-center p-8 rounded-3xl border-4 border-dashed transition-all ${Math.abs(diferencia) < 0.01 && listaTransportes.length > 0 ? "bg-green-50 border-green-300" : "bg-muted/40 border-muted-foreground/20"}`}>
               <div className="space-y-2">
                 {Math.abs(diferencia) > 0.01 ? (
-                  <p className="text-2xl font-black text-destructive tracking-tighter">Diferencia: ${diferencia.toFixed(2)}</p>
+                  <p className="text-2xl font-black text-destructive tracking-tighter">Falta por asignar: ${diferencia.toFixed(2)}</p>
                 ) : listaTransportes.length > 0 ? (
                   <p className="text-3xl font-black text-green-600 flex items-center gap-2"><CheckCircle2 className="h-8 w-8" /> MONTOS CUADRADOS</p>
                 ) : (
-                   <p className="text-muted-foreground font-medium italic">Esperando ingreso de datos...</p>
+                   <p className="text-muted-foreground font-medium italic">Ingrese transportes para completar el valor de factura.</p>
                 )}
               </div>
               <Button size="lg" className="py-10 px-12 text-2xl font-black shadow-2xl rounded-2xl" disabled={Math.abs(diferencia) > 0.01 || listaTransportes.length === 0 || loadingRegistro} onClick={handleFinalizarRegistro}>
-                {loadingRegistro ? <Loader2 className="mr-3 h-8 w-8 animate-spin" /> : "FINALIZAR"}
+                {loadingRegistro ? <Loader2 className="mr-3 h-8 w-8 animate-spin" /> : "FINALIZAR REGISTRO"}
               </Button>
             </div>
           </CardContent>
