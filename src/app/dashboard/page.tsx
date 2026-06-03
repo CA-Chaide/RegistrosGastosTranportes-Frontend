@@ -90,14 +90,12 @@ export default function DashboardPage() {
       const user = storedUser ? JSON.parse(storedUser) : null;
       const userCode = String(user?.usuario || user?.codigo_usuario || '');
 
-      // RECUPERAR DATOS USANDO getAll()
       const resp = await registroGastosTransporte.getAll();
       const rawData = resp.data || [];
       
       const mappedData: RegistroFactura[] = rawData
         .filter((item: any) => {
           const itemProv = String(getRobustValue(item, ['AgenteTransporte', 'codigoProveedor', 'proveedor']) || '');
-          // Filtramos por el usuario si existe un código de proveedor asociado al login
           return userCode ? itemProv.includes(userCode) || userCode.includes(itemProv) : true;
         })
         .map((item: any, idx: number) => {
@@ -171,13 +169,10 @@ export default function DashboardPage() {
     const groups: Record<string, GrupoDashboard> = {};
     
     const baseFiltrada = registros.filter(reg => {
-      // Filtro por factura
       if (invoiceFilter.trim()) {
         const cleanInvoice = invoiceFilter.toLowerCase().replace(/-/g, '');
         if (!reg.numeroFactura.toLowerCase().replace(/-/g, '').includes(cleanInvoice)) return false;
       }
-
-      // Filtro por rango de fechas
       if (dateRange?.from && dateRange?.to) {
         const regDate = new Date(reg.fechaRegistro);
         if (!isWithinInterval(regDate, { 
@@ -185,7 +180,6 @@ export default function DashboardPage() {
           end: endOfDay(dateRange.to) 
         })) return false;
       }
-
       return true;
     });
 
@@ -297,15 +291,15 @@ export default function DashboardPage() {
       const tableData = items.map(reg => [
         reg.transporte || 'N/A', 
         reg.numeroGasto || 'N/A',
-        `$${reg.valorTotal.toFixed(2)}`,
-        reg.estadoGasto || 'N/A'
+        reg.estadoGasto || 'N/A',
+        `$${reg.valorTotal.toFixed(2)}`
       ]);
 
       autoTable(doc, {
         startY: 60,
-        head: [['N° Transporte', 'N° Gasto del Transporte', 'Monto del Rubro', 'Estado Gasto']],
+        head: [['N° Transporte', 'N° Gasto del Transporte', 'Estado Gasto', 'Monto Parcial']],
         body: tableData,
-        foot: [[{ content: 'VALOR TOTAL DE LA FACTURA', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: `$${totalFactura.toFixed(2)}`, styles: { halign: 'right', fontStyle: 'bold' } }, '']],
+        foot: [[{ content: 'VALOR TOTAL DE LA FACTURA', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: `$${totalFactura.toFixed(2)}`, styles: { halign: 'right', fontStyle: 'bold' } }]],
         headStyles: { fillColor: [0, 85, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
         footStyles: { fillColor: [240, 244, 248], textColor: [0, 85, 184], fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [250, 250, 250] },
@@ -360,10 +354,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <Card 
-          className="border-l-8 border-l-blue-600 shadow-lg hover:shadow-xl transition-all border-y-0 border-r-0 cursor-pointer active:scale-95 group"
-          onClick={() => setStatusFilter("TODOS")}
-        >
+        <Card className="border-l-8 border-l-blue-600 shadow-lg hover:shadow-xl transition-all cursor-pointer group" onClick={() => setStatusFilter("TODOS")}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-blue-600 transition-colors">Facturas Registradas</CardTitle>
             <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors"><Package className="h-5 w-5 text-blue-600" /></div>
@@ -374,34 +365,24 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card 
-          className="border-l-8 border-l-orange-500 shadow-lg hover:shadow-xl transition-all border-y-0 border-r-0 cursor-pointer active:scale-95 group"
-          onClick={() => setStatusFilter("PENDIENTE")}
-        >
+        <Card className="border-l-8 border-l-orange-500 shadow-lg hover:shadow-xl transition-all cursor-pointer group" onClick={() => setStatusFilter("PENDIENTE")}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-orange-600 transition-colors">Pendientes Físicos</CardTitle>
             <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors"><Clock className="h-5 w-5 text-orange-500" /></div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black tracking-tighter text-orange-600">
-               {totalFacturasPendientesFisico}
-            </div>
+            <div className="text-3xl font-black tracking-tighter text-orange-600">{totalFacturasPendientesFisico}</div>
             <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver pendientes</p>
           </CardContent>
         </Card>
 
-        <Card 
-          className="border-l-8 border-l-green-600 shadow-lg hover:shadow-xl transition-all border-y-0 border-r-0 cursor-pointer active:scale-95 group"
-          onClick={() => setStatusFilter("ENTREGADO")}
-        >
+        <Card className="border-l-8 border-l-green-600 shadow-lg hover:shadow-xl transition-all cursor-pointer group" onClick={() => setStatusFilter("ENTREGADO")}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-green-600 transition-colors">Facturas Procesadas</CardTitle>
             <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black tracking-tighter text-green-700">
-              {totalFacturasProcesadas}
-            </div>
+            <div className="text-3xl font-black tracking-tighter text-green-700">{totalFacturasProcesadas}</div>
             <p className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tight">Haz clic para ver entregas físicas</p>
           </CardContent>
         </Card>
@@ -412,27 +393,13 @@ export default function DashboardPage() {
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div>
               <CardTitle className="text-3xl font-black text-primary uppercase tracking-tighter">Gestión de Entregas</CardTitle>
-              <CardDescription className="font-semibold text-base mt-1 text-gray-500">
-                Visualización consolidada por Factura y Gasto Operativo.
-              </CardDescription>
+              <CardDescription className="font-semibold text-base mt-1 text-gray-500">Visualización consolidada por Factura y Gasto Operativo.</CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-4">
               <div className="relative w-[220px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/60" />
-                <Input 
-                  placeholder="BUSCAR POR FACTURA" 
-                  value={invoiceFilter} 
-                  onChange={(e) => setInvoiceFilter(e.target.value)} 
-                  className="h-12 pl-10 pr-10 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight bg-white" 
-                />
-                {invoiceFilter && (
-                  <button 
-                    onClick={() => setInvoiceFilter("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
+                <Input placeholder="BUSCAR POR FACTURA" value={invoiceFilter} onChange={(e) => setInvoiceFilter(e.target.value)} className="h-12 pl-10 pr-10 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight bg-white" />
+                {invoiceFilter && <button onClick={() => setInvoiceFilter("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"><X className="h-4 w-4" /></button>}
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[200px] h-12 border-2 border-primary/20 rounded-xl font-black uppercase tracking-tight bg-white">
@@ -456,25 +423,10 @@ export default function DashboardPage() {
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-3xl overflow-hidden" align="end">
                   <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={es} className="p-6 bg-white" />
-                  <div className="p-4 bg-gray-50 border-t flex justify-end">
-                     <Button variant="ghost" size="sm" onClick={() => setDateRange(undefined)} className="text-xs font-bold text-primary"><RotateCcw className="mr-2 h-3 w-3" /> RESTABLECER FECHAS</Button>
-                  </div>
                 </PopoverContent>
               </Popover>
-              
-              {anyFilterActive && (
-                <Button 
-                  variant="destructive" 
-                  onClick={handleClearFilter}
-                  className="h-12 px-6 font-black uppercase tracking-widest shadow-md rounded-xl animate-in zoom-in-95 duration-200"
-                >
-                  <RotateCcw className="mr-2 h-5 w-5" /> ELIMINAR FILTROS
-                </Button>
-              )}
-
               <div className="flex gap-2">
                 <Button variant="outline" size="lg" onClick={handleDownloadPDF} disabled={selectedIds.size === 0} className="border-2 border-primary text-primary font-black h-12 px-6 rounded-xl"><FileDown className="mr-3 h-5 w-5" /> EXPORTAR PDF {selectedIds.size > 0 && `(${selectedIds.size})`}</Button>
-                <Button variant="outline" size="lg" onClick={handleDownloadExcel} disabled={selectedIds.size === 0} className="border-2 border-green-600 text-green-600 font-black h-12 px-6 rounded-xl"><FileSpreadsheet className="mr-3 h-5 w-5" /> EXPORTAR EXCEL {selectedIds.size > 0 && `(${selectedIds.size})`}</Button>
               </div>
             </div>
           </div>
@@ -483,156 +435,101 @@ export default function DashboardPage() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-32 gap-6"><Loader2 className="h-14 w-14 animate-spin text-primary opacity-50" /><p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Recuperando registros históricos...</p></div>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader className="bg-gray-50">
-                    <TableRow className="hover:bg-transparent border-b-2">
-                      <TableHead className="w-[50px] py-6 px-4 text-center">
-                        <Checkbox 
-                          checked={groupedRegistros.length > 0 && Array.from(selectedIds).length === registros.filter(r => groupedRegistros.some(g => g.keyFactura === r.numeroFactura)).length}
-                          onCheckedChange={handleSelectAll}
-                        />
-                      </TableHead>
-                      <TableHead className="w-[40px]"></TableHead>
-                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
-                      <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest py-6 px-4">Fecha Registro</TableHead>
-                      <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto Total</TableHead>
-                      <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-6 tracking-widest">Físico</TableHead>
-                      <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pagedGroups.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No hay gastos registrados que coincidan con los filtros.</TableCell></TableRow>
-                    ) : (
-                      pagedGroups.map((grupo) => {
-                        const isExpanded = expandedRows.has(grupo.keyFactura);
-                        const groupAllSelected = grupo.items.every(i => selectedIds.has(i.id));
-                        const isFisicoEntregado = entregadosFisicos.has(grupo.keyFactura);
-                        
-                        return (
-                          <React.Fragment key={grupo.keyFactura}>
-                            <TableRow className={cn("hover:bg-primary/5 transition-all border-b border-gray-100 group cursor-pointer", isExpanded && "bg-primary/5")}>
-                              <TableCell className="py-6 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                                <Checkbox 
-                                  checked={groupAllSelected}
-                                  onCheckedChange={(checked) => handleSelectGroup(grupo.items, !!checked)}
-                                />
-                              </TableCell>
-                              <TableCell className="text-center" onClick={() => toggleRow(grupo.keyFactura)}>
-                                {isExpanded ? <ChevronDown className="h-6 w-6 text-primary" /> : <ChevronRight className="h-6 w-6 text-muted-foreground" />}
-                              </TableCell>
-                              <TableCell className="text-center font-bold text-gray-600" onClick={() => toggleRow(grupo.keyFactura)}>
-                                {formatInvoice(grupo.numeroFactura)}
-                              </TableCell>
-                              <TableCell className="py-6 px-4 text-center" onClick={() => toggleRow(grupo.keyFactura)}>
-                                <div className="flex flex-col">
-                                  <span className="font-black text-sm text-gray-900">{format(new Date(grupo.fechaRegistro), "dd/MM/yyyy")}</span>
-                                  <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">{format(new Date(grupo.fechaRegistro), "HH:mm 'HRS'")}</span>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-gray-50">
+                  <TableRow className="border-b-2">
+                    <TableHead className="w-[50px] py-6 px-4 text-center">
+                      <Checkbox checked={groupedRegistros.length > 0 && Array.from(selectedIds).length === registros.filter(r => groupedRegistros.some(g => g.keyFactura === r.numeroFactura)).length} onCheckedChange={handleSelectAll} />
+                    </TableHead>
+                    <TableHead className="w-[40px]"></TableHead>
+                    <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest">N° Factura</TableHead>
+                    <TableHead className="font-black text-xs uppercase text-gray-500 text-center tracking-widest py-6 px-4">Fecha Registro</TableHead>
+                    <TableHead className="text-right font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Monto Total</TableHead>
+                    <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-6 tracking-widest">Físico</TableHead>
+                    <TableHead className="text-center font-black text-xs uppercase text-gray-500 px-10 tracking-widest">Estado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pagedGroups.length === 0 ? (
+                    <TableRow><TableCell colSpan={8} className="text-center py-24 text-muted-foreground italic font-bold text-lg">No hay gastos registrados que coincidan con los filtros.</TableCell></TableRow>
+                  ) : (
+                    pagedGroups.map((grupo) => {
+                      const isExpanded = expandedRows.has(grupo.keyFactura);
+                      const groupAllSelected = grupo.items.every(i => selectedIds.has(i.id));
+                      const isFisicoEntregado = entregadosFisicos.has(grupo.keyFactura);
+                      
+                      return (
+                        <React.Fragment key={grupo.keyFactura}>
+                          <TableRow className={cn("hover:bg-primary/5 transition-all border-b border-gray-100 group cursor-pointer", isExpanded && "bg-primary/5")} onClick={() => toggleRow(grupo.keyFactura)}>
+                            <TableCell className="py-6 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox checked={groupAllSelected} onCheckedChange={(checked) => handleSelectGroup(grupo.items, !!checked)} />
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {isExpanded ? <ChevronDown className="h-6 w-6 text-primary" /> : <ChevronRight className="h-6 w-6 text-muted-foreground" />}
+                            </TableCell>
+                            <TableCell className="text-center font-bold text-gray-600">{formatInvoice(grupo.numeroFactura)}</TableCell>
+                            <TableCell className="py-6 px-4 text-center">
+                              <div className="flex flex-col">
+                                <span className="font-black text-sm text-gray-900">{format(new Date(grupo.fechaRegistro), "dd/MM/yyyy")}</span>
+                                <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">{format(new Date(grupo.fechaRegistro), "HH:mm 'HRS'")}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right px-10">
+                              <span className="text-xl font-black text-primary tracking-tighter">${grupo.valorTotalAcumulado.toFixed(2)}</span>
+                            </TableCell>
+                            <TableCell className="text-center px-6" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox checked={isFisicoEntregado} onCheckedChange={(checked) => handleToggleEntregado(grupo.keyFactura, !!checked)} className="border-2 border-primary/50 data-[state=checked]:bg-primary h-6 w-6" />
+                            </TableCell>
+                            <TableCell className="text-center px-10">
+                              <Badge className={cn("px-4 py-1 font-black uppercase text-[9px] tracking-widest", grupo.estado.toUpperCase() === 'TRANSFERIDO' || grupo.estado.toUpperCase() === 'A' ? "bg-green-600" : "bg-orange-500")}>
+                                {grupo.estado}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow className="bg-muted/30 border-l-4 border-l-primary animate-in fade-in duration-300">
+                              <TableCell colSpan={8} className="p-0">
+                                <div className="p-6">
+                                  <div className="flex items-center gap-2 mb-4 text-primary font-black uppercase text-xs tracking-widest"><Package className="h-4 w-4" /> Detalle de Transportes</div>
+                                  <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
+                                    <Table>
+                                      <TableHeader className="bg-muted/50">
+                                        <TableRow className="hover:bg-transparent">
+                                          <TableHead className="w-[50px] text-center"></TableHead>
+                                          <TableHead className="font-black text-[10px] uppercase py-3 pl-8">N° Transporte</TableHead>
+                                          <TableHead className="font-black text-[10px] uppercase text-center">N° Gasto del Transporte</TableHead>
+                                          <TableHead className="font-black text-[10px] uppercase text-center">Estado Gasto</TableHead>
+                                          <TableHead className="text-right font-black text-[10px] uppercase pr-8">Monto Parcial</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {grupo.items.map((item) => (
+                                          <TableRow key={item.id} className="hover:bg-primary/5 group/sub">
+                                            <TableCell className="text-center"><Checkbox checked={selectedIds.has(item.id)} onCheckedChange={(checked) => handleSelectRow(item.id, !!checked)} /></TableCell>
+                                            <TableCell className="py-4 pl-8"><div className="flex items-center gap-2 font-bold text-gray-600"><ReceiptText className="h-4 w-4 opacity-50" />{item.transporte || 'N/A'}</div></TableCell>
+                                            <TableCell className="text-center"><div className="inline-flex items-center gap-2 bg-muted/50 px-3 py-1 rounded-full font-black text-primary text-sm"><Hash className="h-3 w-3" />{item.numeroGasto || 'N/A'}</div></TableCell>
+                                            <TableCell className="text-center"><div className="inline-flex items-center gap-2 text-primary"><ShieldCheck className="h-3.5 w-3.5 opacity-50" /><span className="text-xs font-bold uppercase">{item.estadoGasto || 'N/A'}</span></div></TableCell>
+                                            <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">${item.valorTotal.toFixed(2)}</TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-right px-10" onClick={() => toggleRow(grupo.keyFactura)}>
-                                <span className="text-xl font-black text-primary tracking-tighter">${grupo.valorTotalAcumulado.toFixed(2)}</span>
-                              </TableCell>
-                              <TableCell className="text-center px-6" onClick={(e) => e.stopPropagation()}>
-                                <Checkbox 
-                                  checked={isFisicoEntregado} 
-                                  onCheckedChange={(checked) => handleToggleEntregado(grupo.keyFactura, !!checked)}
-                                  className="border-2 border-primary/50 data-[state=checked]:bg-primary h-6 w-6"
-                                />
-                              </TableCell>
-                              <TableCell className="text-center px-10" onClick={() => toggleRow(grupo.keyFactura)}>
-                                <Badge className={cn("px-4 py-1 font-black uppercase text-[9px] tracking-widest", grupo.estado.toUpperCase() === 'TRANSFERIDO' || grupo.estado.toUpperCase() === 'A' ? "bg-green-600" : "bg-orange-500")}>
-                                  {grupo.estado}
-                                </Badge>
-                              </TableCell>
                             </TableRow>
-                            {isExpanded && (
-                              <TableRow className="bg-muted/30 border-l-4 border-l-primary animate-in fade-in duration-300">
-                                <TableCell colSpan={8} className="p-0">
-                                  <div className="p-6">
-                                    <div className="flex items-center gap-2 mb-4 text-primary font-black uppercase text-xs tracking-widest">
-                                      <Package className="h-4 w-4" /> Detalle de Transportes asociados al Gasto
-                                    </div>
-                                    <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
-                                      <Table>
-                                        <TableHeader className="bg-muted/50">
-                                          <TableRow className="hover:bg-transparent">
-                                            <TableHead className="w-[50px] text-center"></TableHead>
-                                            <TableHead className="font-black text-[10px] uppercase py-3 pl-8">N° Transporte</TableHead>
-                                            <TableHead className="font-black text-[10px] uppercase text-center">N° Gasto del Transporte</TableHead>
-                                            <TableHead className="font-black text-[10px] uppercase text-center">Estado Gasto</TableHead>
-                                            <TableHead className="text-right font-black text-[10px] uppercase pr-8">Monto Parcial</TableHead>
-                                          </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                          {grupo.items.map((item) => (
-                                            <TableRow key={item.id} className="hover:bg-primary/5 group/sub">
-                                              <TableCell className="text-center">
-                                                <Checkbox checked={selectedIds.has(item.id)} onCheckedChange={(checked) => handleSelectRow(item.id, !!checked)} />
-                                              </TableCell>
-                                              <TableCell className="py-4 pl-8">
-                                                <div className="flex items-center gap-2 font-bold text-gray-600"><ReceiptText className="h-4 w-4 opacity-50" />{item.transporte || 'N/A'}</div>
-                                              </TableCell>
-                                              <TableCell className="text-center">
-                                                <div className="inline-flex items-center gap-2 bg-muted/50 px-3 py-1 rounded-full font-black text-primary text-sm">
-                                                  <Hash className="h-3 w-3" />
-                                                  {item.numeroGasto || 'N/A'}
-                                                </div>
-                                              </TableCell>
-                                              <TableCell className="text-center">
-                                                <div className="inline-flex items-center gap-2 text-primary">
-                                                  <ShieldCheck className="h-3.5 w-3.5 opacity-50" />
-                                                  <span className="text-xs font-bold uppercase">{item.estadoGasto || 'N/A'}</span>
-                                                </div>
-                                              </TableCell>
-                                              <TableCell className="text-right pr-8 font-black text-lg tracking-tighter text-gray-900">${item.valorTotal.toFixed(2)}</TableCell>
-                                            </TableRow>
-                                          ))}
-                                        </TableBody>
-                                        <tfoot className="bg-gray-50 border-t">
-                                          <TableRow className="hover:bg-transparent">
-                                            <TableCell colSpan={4} className="text-right font-black text-[10px] uppercase tracking-widest py-3">Valor Total de la Factura</TableCell>
-                                            <TableCell className="text-right pr-8 font-black text-xl text-primary tracking-tighter">
-                                              ${grupo.valorTotalAcumulado.toFixed(2)}
-                                            </TableCell>
-                                          </TableRow>
-                                        </tfoot>
-                                      </Table>
-                                    </div>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </React.Fragment>
-                        )
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-10 py-6 bg-gray-50 border-t border-gray-100">
-                  <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-                    Página {currentPage} de {totalPages} 
-                    <span className="ml-4 opacity-60">(Mostrando {groupedRegistros.length} registros filtrados)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} className="h-10 px-4 font-black border-2"><ChevronLeft className="h-4 w-4 mr-2" /> ANTERIOR</Button>
-                    <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} className="h-10 px-4 font-black border-2">SIGUIENTE <ChevronRight className="h-4 w-4 ml-2" /></Button>
-                  </div>
-                </div>
-              )}
-            </>
+                          )}
+                        </React.Fragment>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
-      
-      <div className="text-center py-6">
-        <p className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.4em] opacity-60">Chaide - Sistema de Gestión de Gastos de Transportes v1.0</p>
-      </div>
     </div>
   );
 }

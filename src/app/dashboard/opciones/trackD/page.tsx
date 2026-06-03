@@ -65,14 +65,12 @@ export default function ConsultaRegistrosPage() {
       const user = storedUser ? JSON.parse(storedUser) : null;
       const proveedorId = String(user?.usuario || user?.codigo_usuario || '');
       
-      // Recuperar TODOS los registros de la tabla oficial
       const resp = await registroGastosTransporte.getAll();
       const rawData = resp.data || [];
       
       const mappedData: RegistroFactura[] = rawData
         .filter((item: any) => {
           const itemProv = String(getRobustValue(item, ['AgenteTransporte', 'codigoProveedor', 'proveedor']) || '');
-          // Si el usuario es transportista, solo ve sus datos. Si es admin, ve todo.
           return proveedorId ? itemProv.includes(proveedorId) || proveedorId.includes(itemProv) : true;
         })
         .map((item: any, idx: number) => {
@@ -86,7 +84,7 @@ export default function ConsultaRegistrosPage() {
 
           return {
             id: String(item.id || idx),
-            numeroRegistro: String(getRobustValue(item, ['id', 'numeroRegistro']) || 'N/A'),
+            numeroRegistro: String(getRobustValue(item, ['id', 'numeroRegistro']) || 'REG-' + idx),
             codigoProveedor: String(getRobustValue(item, ['AgenteTransporte', 'proveedor']) || proveedorId),
             numeroFactura: String(factura || ''),
             valorTotal: valNumeric,
@@ -120,18 +118,12 @@ export default function ConsultaRegistrosPage() {
     if (!val || val === 'N/A') return 'N/A';
     if (val.includes('-')) return val;
     const clean = val.replace(/\D/g, '');
-    if (clean.length >= 13) {
-      return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
-    }
-    if (clean.length > 3) {
-      return `${clean.slice(0, 3)}-${clean.slice(3)}`;
-    }
+    if (clean.length >= 13) return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
     return clean;
   };
 
   const groupedRegistros = useMemo(() => {
     const groups: Record<string, GrupoRegistro> = {};
-    
     registros.forEach(reg => {
       const key = reg.numeroFactura;
       if (!groups[key]) {
@@ -150,17 +142,10 @@ export default function ConsultaRegistrosPage() {
       groups[key].valorTotalAcumulado += reg.valorTotal;
     });
 
-    const list = Object.values(groups).sort((a, b) => 
-      new Date(b.fechaRegistro).getTime() - new Date(a.fechaRegistro).getTime()
-    );
-
+    const list = Object.values(groups).sort((a, b) => new Date(b.fechaRegistro).getTime() - new Date(a.fechaRegistro).getTime());
     if (!searchTerm.trim()) return list;
-
     const term = searchTerm.toLowerCase().replace(/-/g, '');
-    return list.filter(g => 
-      g.numeroFactura.toLowerCase().replace(/-/g, '').includes(term) ||
-      g.codigoProveedor.toLowerCase().includes(term)
-    );
+    return list.filter(g => g.numeroFactura.toLowerCase().replace(/-/g, '').includes(term));
   }, [registros, searchTerm]);
 
   return (
@@ -172,17 +157,7 @@ export default function ConsultaRegistrosPage() {
         </div>
         <div className="relative w-full md:w-96">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary/60" />
-          <Input 
-            placeholder="BUSCAR POR FACTURA..." 
-            className="pl-12 pr-10 h-14 text-lg border-2 border-primary/20 rounded-2xl font-bold uppercase placeholder:text-muted-foreground/50 shadow-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary">
-              <X className="h-5 w-5" />
-            </button>
-          )}
+          <Input placeholder="BUSCAR POR FACTURA..." className="pl-12 pr-10 h-14 text-lg border-2 border-primary/20 rounded-2xl font-bold uppercase" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
       </div>
 
@@ -193,10 +168,7 @@ export default function ConsultaRegistrosPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-32 gap-6">
-              <Loader2 className="h-14 w-14 animate-spin text-primary opacity-50" />
-              <p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Cargando base de datos...</p>
-            </div>
+            <div className="flex flex-col items-center justify-center py-32 gap-6"><Loader2 className="h-14 w-14 animate-spin text-primary opacity-50" /><p className="text-muted-foreground font-black text-sm uppercase tracking-[0.3em]">Cargando base de datos...</p></div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -212,155 +184,56 @@ export default function ConsultaRegistrosPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groupedRegistros.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-32 text-muted-foreground italic font-bold text-xl">
-                        No se encontraron registros que coincidan con la búsqueda.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    groupedRegistros.map((grupo) => {
-                      const isExpanded = expandedRows.has(grupo.keyFactura);
-                      return (
-                        <React.Fragment key={grupo.keyFactura}>
-                          <TableRow 
-                            className={cn(
-                              "hover:bg-primary/5 transition-all cursor-pointer group",
-                              isExpanded && "bg-primary/5"
-                            )}
-                            onClick={() => toggleRow(grupo.keyFactura)}
-                          >
-                            <TableCell className="text-center">
-                              {isExpanded ? (
-                                <ChevronDown className="h-6 w-6 text-primary animate-in fade-in" />
-                              ) : (
-                                <ChevronRight className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
-                              )}
-                            </TableCell>
-                            <TableCell className="font-black text-gray-900 tabular-nums tracking-tight text-lg py-6">
-                              {formatInvoice(grupo.numeroFactura)}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <span className={cn(
-                                  "w-1.5 h-8 bg-primary rounded-full transition-all duration-300",
-                                  isExpanded ? "scale-y-125" : "group-hover:scale-y-110"
-                                )}></span>
-                                <span className="font-black text-primary text-base uppercase tracking-tight">{grupo.numeroRegistro}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <div className="bg-muted p-2 rounded-xl">
-                                  <User className="h-4 w-4 text-primary" />
+                  {groupedRegistros.map((grupo) => {
+                    const isExpanded = expandedRows.has(grupo.keyFactura);
+                    return (
+                      <React.Fragment key={grupo.keyFactura}>
+                        <TableRow className={cn("hover:bg-primary/5 cursor-pointer", isExpanded && "bg-primary/5")} onClick={() => toggleRow(grupo.keyFactura)}>
+                          <TableCell className="text-center">{isExpanded ? <ChevronDown className="h-6 w-6 text-primary" /> : <ChevronRight className="h-6 w-6 text-muted-foreground" />}</TableCell>
+                          <TableCell className="font-black text-gray-900 tabular-nums text-lg py-6">{formatInvoice(grupo.numeroFactura)}</TableCell>
+                          <TableCell><span className="font-black text-primary text-base uppercase tracking-tight">{grupo.numeroRegistro}</span></TableCell>
+                          <TableCell><div className="flex items-center gap-2"><div className="bg-muted p-2 rounded-xl"><User className="h-4 w-4 text-primary" /></div><span className="font-black text-gray-700 text-sm">{grupo.codigoProveedor}</span></div></TableCell>
+                          <TableCell className="text-center font-black text-xs">{format(new Date(grupo.fechaRegistro), "dd/MM/yyyy")}</TableCell>
+                          <TableCell className="text-right px-8"><span className="text-2xl font-black text-primary">${grupo.valorTotalAcumulado.toFixed(2)}</span></TableCell>
+                          <TableCell className="text-center px-8">
+                            <Badge className={cn("px-4 py-1 font-black uppercase text-[10px] tracking-widest", grupo.estado.toUpperCase() === 'PROCESADO' || grupo.estado.toUpperCase() === 'A' ? "bg-green-600" : "bg-orange-500")}>{grupo.estado}</Badge>
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && (
+                          <TableRow className="bg-muted/40 animate-in slide-in-from-left-2 duration-300">
+                            <TableCell colSpan={7} className="p-0">
+                              <div className="p-8 space-y-4">
+                                <div className="flex items-center gap-2 mb-2"><Package className="h-5 w-5 text-primary" /><h4 className="text-sm font-black uppercase tracking-widest text-primary">Desglose de Operaciones</h4></div>
+                                <div className="bg-white rounded-2xl border-2 border-primary/10 overflow-hidden shadow-inner">
+                                  <Table>
+                                    <TableHeader className="bg-muted/50">
+                                      <TableRow><TableHead className="font-black text-[10px] uppercase py-3 pl-8">N° Transporte</TableHead><TableHead className="font-black text-[10px] uppercase text-center">N° Gasto del Transporte</TableHead><TableHead className="font-black text-[10px] uppercase text-center">Estado Gasto</TableHead><TableHead className="font-black text-[10px] uppercase text-right pr-8">Valor del Transporte</TableHead></TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {grupo.items.map((item) => (
+                                        <TableRow key={item.id} className="hover:bg-primary/5">
+                                          <TableCell className="py-4 pl-8 font-bold text-gray-600"><div className="flex items-center gap-2"><ReceiptText className="h-4 w-4 opacity-50" />{item.transporte || 'N/A'}</div></TableCell>
+                                          <TableCell className="text-center"><div className="inline-flex items-center gap-2 bg-muted/50 px-3 py-1 rounded-full font-black text-primary text-sm"><Hash className="h-3 w-3" />{item.numeroGasto || 'N/A'}</div></TableCell>
+                                          <TableCell className="text-center"><div className="inline-flex items-center gap-2 text-primary"><ShieldCheck className="h-3.5 w-3.5 opacity-50" /><span className="text-xs font-bold uppercase">{item.estadoGasto || 'N/A'}</span></div></TableCell>
+                                          <TableCell className="text-right pr-8 font-black text-lg text-gray-900">${item.valorTotal.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
                                 </div>
-                                <span className="font-black text-gray-700 text-sm">{grupo.codigoProveedor}</span>
                               </div>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <div className="flex flex-col">
-                                <span className="text-xs font-black text-gray-900">
-                                  {format(new Date(grupo.fechaRegistro), "dd 'de' MMMM, yyyy", { locale: es })}
-                                </span>
-                                <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">
-                                  {format(new Date(grupo.fechaRegistro), "HH:mm 'HRS'")}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right px-8">
-                              <span className="text-2xl font-black text-primary tracking-tighter">
-                                ${grupo.valorTotalAcumulado.toFixed(2)}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-center px-8">
-                              <Badge className={cn(
-                                "px-4 py-1 font-black uppercase text-[10px] tracking-widest shadow-md border-none",
-                                grupo.estado.toUpperCase() === 'PROCESADO' || grupo.estado.toUpperCase() === 'A' || grupo.estado.toUpperCase() === 'TRANSFERIDO' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600"
-                              )}>
-                                {grupo.estado}
-                              </Badge>
                             </TableCell>
                           </TableRow>
-                          
-                          {isExpanded && (
-                            <TableRow className="bg-muted/40 hover:bg-muted/40 border-l-4 border-l-primary animate-in slide-in-from-left-2 duration-300">
-                              <TableCell colSpan={7} className="p-0">
-                                <div className="p-8 space-y-4">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Package className="h-5 w-5 text-primary" />
-                                    <h4 className="text-sm font-black uppercase tracking-widest text-primary">Desglose de Operaciones ({grupo.items.length})</h4>
-                                  </div>
-                                  <div className="bg-white rounded-2xl border-2 border-primary/10 overflow-hidden shadow-inner">
-                                    <Table>
-                                      <TableHeader className="bg-muted/50">
-                                        <TableRow className="hover:bg-transparent">
-                                          <TableHead className="font-black text-[10px] uppercase tracking-widest py-3 pl-8">N° Transporte</TableHead>
-                                          <TableHead className="font-black text-[10px] uppercase text-center">N° Gasto del Transporte</TableHead>
-                                          <TableHead className="font-black text-[10px] uppercase text-center">Estado Gasto</TableHead>
-                                          <TableHead className="font-black text-[10px] uppercase text-right pr-8">Valor del Transporte</TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {grupo.items.map((item) => (
-                                          <TableRow key={item.id} className="hover:bg-primary/5 group/sub">
-                                            <TableCell className="py-4 pl-8">
-                                              <div className="flex items-center gap-2 font-bold text-gray-600">
-                                                <ReceiptText className="h-4 w-4 opacity-50 text-primary" />
-                                                {item.transporte || 'N/A'}
-                                              </div>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                              <div className="inline-flex items-center gap-2 bg-muted/50 px-3 py-1 rounded-full font-black text-primary text-sm">
-                                                <Hash className="h-3 w-3" />
-                                                {item.numeroGasto || 'N/A'}
-                                              </div>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                              <div className="inline-flex items-center gap-2 text-primary">
-                                                <ShieldCheck className="h-3.5 w-3.5 opacity-50" />
-                                                <span className="text-xs font-bold uppercase">{item.estadoGasto || 'N/A'}</span>
-                                              </div>
-                                            </TableCell>
-                                            <TableCell className="text-right pr-8">
-                                               <div className="flex items-center justify-end gap-1 font-black text-lg tracking-tighter text-gray-900">
-                                                  <DollarSign className="h-4 w-4 opacity-30" />
-                                                  {item.valorTotal.toFixed(2)}
-                                               </div>
-                                            </TableCell>
-                                          </TableRow>
-                                        ))}
-                                      </TableBody>
-                                      <tfoot className="bg-gray-50 border-t-2">
-                                        <TableRow className="hover:bg-transparent">
-                                          <TableCell colSpan={3} className="text-right font-black text-[10px] uppercase tracking-widest py-4">Total de Factura</TableCell>
-                                          <TableCell className="text-right pr-8 font-black text-2xl text-primary tracking-tighter">
-                                            ${grupo.valorTotalAcumulado.toFixed(2)}
-                                          </TableCell>
-                                        </TableRow>
-                                      </tfoot>
-                                    </Table>
-                                  </div>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </React.Fragment>
-                      )
-                    })
-                  )}
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
           )}
         </CardContent>
       </Card>
-      
-      <div className="text-center py-10 opacity-60">
-        <p className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.4em]">
-          Chaide - Sistema de Gestión de Gastos de Transportes v1.0
-        </p>
-      </div>
     </div>
   );
 }
-
