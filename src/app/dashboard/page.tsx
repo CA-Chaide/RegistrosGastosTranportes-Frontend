@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { registroGastosTransporte } from '@/services/registroGastosTransporte.service';
+import { serviciosService } from '@/services/servicios.service';
 import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText, X, Hash } from 'lucide-react';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -70,8 +70,8 @@ export default function DashboardPage() {
     to: new Date(),
   });
 
-  // Helper para buscar valores de forma robusta e insensible a mayúsculas
   const getRobustValue = (obj: any, keys: string[]) => {
+    if (!obj) return undefined;
     const objKeys = Object.keys(obj);
     for (const key of keys) {
       const foundKey = objKeys.find(k => k.toLowerCase() === key.toLowerCase());
@@ -89,26 +89,34 @@ export default function DashboardPage() {
       const user = storedUser ? JSON.parse(storedUser) : null;
       const proveedorId = String(user?.usuario || user?.codigo_usuario || '');
 
-      const resp = await registroGastosTransporte.getAll();
+      const fechaInicio = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : format(subDays(new Date(), 90), "yyyy-MM-dd");
+      const fechaFin = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+      
+      const apiEstado = statusFilter === "ENTREGADO" ? "E" : (statusFilter === "PENDIENTE" ? "A" : "T");
+
+      const resp = await serviciosService.getInformacionGastosTransportes(
+        apiEstado, 
+        fechaInicio, 
+        fechaFin, 
+        proveedorId
+      );
+      
       const rawData = resp.data || [];
       
       const mappedData: RegistroFactura[] = rawData.map((item: any, idx: number) => {
-        // Mapeo robusto de valor monetario
-        const valRaw = getRobustValue(item, ['ValorGasto', 'valorGasto', 'VALOR', 'valor', 'Monto', 'monto', 'valor_gasto']);
-        const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw);
+        const valRaw = getRobustValue(item, ['ValorGasto', 'valor', 'monto', 'total', 'montoRubro']);
+        const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
         
-        // Mapeo robusto de número de gasto
-        const gasto = getRobustValue(item, ['GastoTransporte', 'gastoTransporte', 'NumGasto', 'numGasto', 'Gasto', 'gasto', 'num_gasto']);
-        
-        // Mapeo robusto de transporte
-        const transporte = getRobustValue(item, ['Transporte', 'transporte', 'Vehiculo', 'vehiculo']);
-        
+        const gasto = getRobustValue(item, ['GastoTransporte', 'NumGasto', 'numeroGasto', 'gasto', 'secuencia']);
+        const transporte = getRobustValue(item, ['Transporte', 'numeroTransporte', 'vehiculo', 'matricula']);
+        const factura = getRobustValue(item, ['NumFactura', 'factura', 'referencia', 'numeroFactura']);
+
         return {
           id: String(item.id || idx),
-          numeroRegistro: item.NumFactura || 'N/A',
+          numeroRegistro: String(factura || 'N/A'),
           codigoProveedor: String(item.AgenteTransporte || proveedorId),
-          numeroFactura: item.NumFactura || '',
-          valorTotal: valNumeric || 0,
+          numeroFactura: String(factura || ''),
+          valorTotal: valNumeric,
           fechaRegistro: item.FechaRegistro || new Date().toISOString(),
           estado: item.Estado || 'A',
           numeroGasto: String(gasto || 'N/A'),
@@ -131,14 +139,14 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateRange, statusFilter]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   const formatInvoice = (val: string) => {
-    if (!val) return 'N/A';
+    if (!val || val === 'N/A') return 'N/A';
     if (val.includes('-')) return val;
     const clean = val.replace(/\D/g, '');
     if (clean.length >= 13) {
@@ -164,19 +172,11 @@ export default function DashboardPage() {
     const groups: Record<string, GrupoDashboard> = {};
     
     const baseFiltrada = registros.filter(reg => {
-      let matchesInvoice = true;
       if (invoiceFilter.trim()) {
         const cleanInvoice = invoiceFilter.toLowerCase().replace(/-/g, '');
-        matchesInvoice = reg.numeroFactura.toLowerCase().includes(cleanInvoice);
+        return reg.numeroFactura.toLowerCase().replace(/-/g, '').includes(cleanInvoice);
       }
-      
-      let matchesDate = true;
-      if (dateRange?.from && dateRange?.to) {
-        const d = new Date(reg.fechaRegistro);
-        matchesDate = d >= startOfDay(dateRange.from) && d <= endOfDay(dateRange.to);
-      }
-
-      return matchesInvoice && matchesDate;
+      return true;
     });
 
     baseFiltrada.forEach(reg => {
@@ -202,7 +202,7 @@ export default function DashboardPage() {
       if (statusFilter === "PENDIENTE") return !isEntregado;
       return true;
     }).sort((a, b) => new Date(b.fechaRegistro).getTime() - new Date(a.fechaRegistro).getTime());
-  }, [registros, statusFilter, invoiceFilter, entregadosFisicos, dateRange]);
+  }, [registros, statusFilter, invoiceFilter, entregadosFisicos]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -403,7 +403,7 @@ export default function DashboardPage() {
             <div>
               <CardTitle className="text-3xl font-black text-primary uppercase tracking-tighter">Gestión de Entregas</CardTitle>
               <CardDescription className="font-semibold text-base mt-1 text-gray-500">
-                Visualización agrupada por Factura recuperada de la base de datos.
+                Visualización consolidada por Factura y Gasto Operativo.
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-4">

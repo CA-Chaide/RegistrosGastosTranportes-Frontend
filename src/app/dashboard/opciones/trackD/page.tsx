@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { registroGastosTransporte } from '@/services/registroGastosTransporte.service';
-import { Loader2, Search, User, ChevronDown, ChevronRight, Package, ReceiptText, Hash, DollarSign } from 'lucide-react';
-import { format } from 'date-fns';
+import { serviciosService } from '@/services/servicios.service';
+import { Loader2, Search, User, ChevronDown, ChevronRight, Package, ReceiptText, Hash, DollarSign, X } from 'lucide-react';
+import { format, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -45,8 +45,8 @@ export default function ConsultaRegistrosPage() {
     fetchRegistros();
   }, []);
 
-  // Helper para buscar valores de forma robusta e insensible a mayúsculas
   const getRobustValue = (obj: any, keys: string[]) => {
+    if (!obj) return undefined;
     const objKeys = Object.keys(obj);
     for (const key of keys) {
       const foundKey = objKeys.find(k => k.toLowerCase() === key.toLowerCase());
@@ -60,28 +60,32 @@ export default function ConsultaRegistrosPage() {
   const fetchRegistros = async () => {
     setLoading(true);
     try {
-      const resp = await registroGastosTransporte.getAll();
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const proveedorId = String(user?.usuario || user?.codigo_usuario || '');
+      
+      const fechaInicio = format(subDays(new Date(), 90), "yyyy-MM-dd");
+      const fechaFin = format(new Date(), "yyyy-MM-dd");
+
+      const resp = await serviciosService.getInformacionGastosTransportes('T', fechaInicio, fechaFin, proveedorId);
       const rawData = resp.data || [];
       
-      const mappedData: RegistroFactura[] = rawData.map((item: any) => {
-        // Mapeo robusto de valor monetario
-        const valRaw = getRobustValue(item, ['ValorGasto', 'valorGasto', 'VALOR', 'valor', 'Monto', 'monto', 'valor_gasto']);
-        const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw);
+      const mappedData: RegistroFactura[] = rawData.map((item: any, idx: number) => {
+        const valRaw = getRobustValue(item, ['ValorGasto', 'valor', 'monto', 'total', 'montoRubro']);
+        const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
         
-        // Mapeo robusto de número de gasto
-        const gasto = getRobustValue(item, ['GastoTransporte', 'gastoTransporte', 'NumGasto', 'numGasto', 'Gasto', 'gasto', 'num_gasto']);
-        
-        // Mapeo robusto de transporte
-        const transporte = getRobustValue(item, ['Transporte', 'transporte', 'Vehiculo', 'vehiculo']);
+        const gasto = getRobustValue(item, ['GastoTransporte', 'NumGasto', 'numeroGasto', 'gasto', 'secuencia']);
+        const transporte = getRobustValue(item, ['Transporte', 'numeroTransporte', 'vehiculo', 'matricula']);
+        const factura = getRobustValue(item, ['NumFactura', 'factura', 'referencia', 'numeroFactura']);
 
         return {
-          id: String(item.id || crypto.randomUUID()),
-          numeroRegistro: item.NumFactura || 'N/A',
-          codigoProveedor: item.AgenteTransporte || '',
-          numeroFactura: item.NumFactura || '',
-          valorTotal: valNumeric || 0,
+          id: String(item.id || idx),
+          numeroRegistro: String(factura || 'N/A'),
+          codigoProveedor: String(item.AgenteTransporte || proveedorId),
+          numeroFactura: String(factura || ''),
+          valorTotal: valNumeric,
           fechaRegistro: item.FechaRegistro || new Date().toISOString(),
-          estado: item.Estado === 'A' ? 'Procesado' : (item.Estado || 'Pendiente'),
+          estado: item.Estado || 'A',
           numeroGasto: String(gasto || 'N/A'),
           transporte: String(transporte || 'N/A')
         };
@@ -106,7 +110,7 @@ export default function ConsultaRegistrosPage() {
   };
 
   const formatInvoice = (val: string) => {
-    if (!val) return 'N/A';
+    if (!val || val === 'N/A') return 'N/A';
     if (val.includes('-')) return val;
     const clean = val.replace(/\D/g, '');
     if (clean.length >= 13) {
@@ -145,10 +149,9 @@ export default function ConsultaRegistrosPage() {
 
     if (!searchTerm.trim()) return list;
 
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.toLowerCase().replace(/-/g, '');
     return list.filter(g => 
-      g.numeroRegistro.toLowerCase().includes(term) ||
-      g.numeroFactura.toLowerCase().includes(term) ||
+      g.numeroFactura.toLowerCase().replace(/-/g, '').includes(term) ||
       g.codigoProveedor.toLowerCase().includes(term)
     );
   }, [registros, searchTerm]);
@@ -158,16 +161,21 @@ export default function ConsultaRegistrosPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-l-8 border-primary pl-6 py-2">
         <div>
           <h1 className="text-4xl font-black tracking-tighter text-primary uppercase">Listado Maestro de Gastos</h1>
-          <p className="text-muted-foreground text-xl font-medium">Historial consolidado por Factura y Referencia de Registro.</p>
+          <p className="text-muted-foreground text-xl font-medium">Historial consolidado por Factura y Gasto Operativo.</p>
         </div>
         <div className="relative w-full md:w-96">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary/60" />
           <Input 
-            placeholder="BUSCAR POR FACTURA O REGISTRO..." 
-            className="pl-12 h-14 text-lg border-2 border-primary/20 rounded-2xl font-bold uppercase placeholder:text-muted-foreground/50 shadow-sm"
+            placeholder="BUSCAR POR FACTURA..." 
+            className="pl-12 pr-10 h-14 text-lg border-2 border-primary/20 rounded-2xl font-bold uppercase placeholder:text-muted-foreground/50 shadow-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary">
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -260,7 +268,7 @@ export default function ConsultaRegistrosPage() {
                             <TableCell className="text-center px-8">
                               <Badge className={cn(
                                 "px-4 py-1 font-black uppercase text-[10px] tracking-widest shadow-md border-none",
-                                grupo.estado.toUpperCase() === 'PROCESADO' || grupo.estado.toUpperCase() === 'A' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600"
+                                grupo.estado.toUpperCase() === 'PROCESADO' || grupo.estado.toUpperCase() === 'A' || grupo.estado.toUpperCase() === 'TRANSFERIDO' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600"
                               )}>
                                 {grupo.estado}
                               </Badge>
