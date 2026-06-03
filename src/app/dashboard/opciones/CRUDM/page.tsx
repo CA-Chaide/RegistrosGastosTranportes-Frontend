@@ -42,6 +42,7 @@ export default function RegistroFacturasPage() {
 
   // Helper para buscar valores en objetos de respuesta de forma robusta
   const getRobustValue = (obj: any, keys: string[]) => {
+    if (!obj || typeof obj !== 'object') return undefined;
     const objKeys = Object.keys(obj);
     for (const key of keys) {
       const foundKey = objKeys.find(k => k.toLowerCase() === key.toLowerCase());
@@ -109,26 +110,30 @@ export default function RegistroFacturasPage() {
   };
 
   const handleAgregarTransporte = async () => {
-    let valorABuscar = transporteActual.trim();
+    const rawInput = transporteActual.trim();
     const proveedor = codigoProveedor.trim();
     
-    if (!valorABuscar) return;
+    if (!rawInput) return;
     
-    // Auto-formateo: Completar con ceros a la izquierda hasta 10 dígitos (común en sistemas Chaide)
-    if (valorABuscar.length < 10 && /^\d+$/.test(valorABuscar)) {
-      valorABuscar = valorABuscar.padStart(10, '0');
-    }
-    
-    if (listaTransportes.find(t => t.numeroTransporte === valorABuscar)) {
-      toast({ title: "Duplicado", description: `El transporte ${valorABuscar} ya está en la lista.`, variant: "destructive" });
+    if (listaTransportes.find(t => t.numeroTransporte === rawInput)) {
+      toast({ title: "Duplicado", description: `El transporte ${rawInput} ya está en la lista.`, variant: "destructive" });
       return;
     }
 
     setLoadingTransporte(true);
     try {
-      const resp = await serviciosService.consultaTransporte(valorABuscar, proveedor);
-      const items = resp?.data || resp || [];
-      const itemsArray = Array.isArray(items) ? items : [];
+      // Intentar búsqueda con el valor exacto ingresado
+      let resp = await serviciosService.consultaTransporte(rawInput, proveedor);
+      let items = resp?.data || resp || [];
+      let itemsArray = Array.isArray(items) ? items : [];
+
+      // Fallback: Si no encuentra nada y es numérico corto, intentar completar con ceros a la izquierda (10 dígitos)
+      if (itemsArray.length === 0 && rawInput.length < 10 && /^\d+$/.test(rawInput)) {
+        const paddedInput = rawInput.padStart(10, '0');
+        resp = await serviciosService.consultaTransporte(paddedInput, proveedor);
+        items = resp?.data || resp || [];
+        itemsArray = Array.isArray(items) ? items : [];
+      }
 
       if (itemsArray.length > 0) {
         const item = itemsArray[0];
@@ -137,20 +142,20 @@ export default function RegistroFacturasPage() {
         const estatus = String(rawEstatus).toUpperCase();
         
         if (estatus === 'C' || estatus === 'CONCLUIDO') {
-          toast({ title: "Transporte Concluido", description: `El transporte ${valorABuscar} ya ha sido finalizado previamente.`, variant: "destructive" });
+          toast({ title: "Transporte Concluido", description: `El transporte ingresado ya ha sido finalizado previamente.`, variant: "destructive" });
           setLoadingTransporte(false);
           return;
         }
 
-        const valRaw = getRobustValue(item, ['valorGasto', 'VALOR', 'valor', 'monto', 'ValorGasto']);
+        const valRaw = getRobustValue(item, ['valorGasto', 'VALOR', 'valor', 'monto', 'ValorGasto', 'Valor']);
         const itemValor = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
         
-        const gasto = getRobustValue(item, ['NumeroGasto', 'Gasto', 'num_gasto', 'secuencia', 'numeroGasto']) || 'N/A';
+        const gasto = getRobustValue(item, ['NumeroGasto', 'Gasto', 'num_gasto', 'secuencia', 'numeroGasto', 'NumGasto']) || 'N/A';
         const placa = getRobustValue(item, ['Placa', 'Vehiculo', 'Matricula', 'placa_vehiculo', 'PLACA']) || 'N/A';
 
         const nuevoTransporte: TransportItem = {
           id: crypto.randomUUID(),
-          numeroTransporte: valorABuscar, 
+          numeroTransporte: String(getRobustValue(item, ['Transporte', 'numeroTransporte', 'NUMERO_TRANSPORTE']) || rawInput), 
           numeroGasto: String(gasto),
           estatus: estatus,
           placa: String(placa),
@@ -162,11 +167,11 @@ export default function RegistroFacturasPage() {
         
         if (transportInputRef.current) transportInputRef.current.focus();
         
-        toast({ title: "Transporte agregado", description: `Vínculo exitoso con transporte ${valorABuscar}.` });
+        toast({ title: "Transporte agregado", description: `Vínculo exitoso con transporte ${nuevoTransporte.numeroTransporte}.` });
       } else {
         toast({ 
-          title: "Transporte no disponible", 
-          description: "No se encontró el transporte o ya fue liquidado en otra factura. Verifique los datos.", 
+          title: "No encontrado", 
+          description: "No se encontró el transporte. Verifique que el número sea correcto y esté asignado a su código de transportista.", 
           variant: "destructive" 
         });
       }
