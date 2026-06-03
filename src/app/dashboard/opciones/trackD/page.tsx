@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -5,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { serviciosService } from '@/services/servicios.service';
-import { Loader2, Search, User, ChevronDown, ChevronRight, Package, ReceiptText, Hash, DollarSign, X } from 'lucide-react';
-import { format, subDays } from 'date-fns';
+import { registroGastosTransporte } from '@/services/registroGastosTransporte.service';
+import { Loader2, Search, User, ChevronDown, ChevronRight, Package, ReceiptText, Hash, DollarSign, X, ShieldCheck } from 'lucide-react';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -64,34 +65,38 @@ export default function ConsultaRegistrosPage() {
       const user = storedUser ? JSON.parse(storedUser) : null;
       const proveedorId = String(user?.usuario || user?.codigo_usuario || '');
       
-      const fechaInicio = format(subDays(new Date(), 90), "yyyy-MM-dd");
-      const fechaFin = format(new Date(), "yyyy-MM-dd");
-
-      const resp = await serviciosService.getInformacionGastosTransportes('T', fechaInicio, fechaFin, proveedorId);
+      // Recuperar TODOS los registros de la tabla oficial
+      const resp = await registroGastosTransporte.getAll();
       const rawData = resp.data || [];
       
-      const mappedData: RegistroFactura[] = rawData.map((item: any, idx: number) => {
-        const valRaw = getRobustValue(item, ['ValorGasto', 'valor', 'monto', 'total', 'montoRubro']);
-        const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
-        
-        const gasto = getRobustValue(item, ['GastoTransporte', 'NumGasto', 'numeroGasto', 'gasto', 'secuencia']);
-        const transporte = getRobustValue(item, ['Transporte', 'numeroTransporte', 'vehiculo', 'matricula']);
-        const factura = getRobustValue(item, ['NumFactura', 'factura', 'referencia', 'numeroFactura']);
-        const estGasto = getRobustValue(item, ['Estado', 'estado_gasto', 'status']);
+      const mappedData: RegistroFactura[] = rawData
+        .filter((item: any) => {
+          const itemProv = String(getRobustValue(item, ['AgenteTransporte', 'codigoProveedor', 'proveedor']) || '');
+          // Si el usuario es transportista, solo ve sus datos. Si es admin, ve todo.
+          return proveedorId ? itemProv.includes(proveedorId) || proveedorId.includes(itemProv) : true;
+        })
+        .map((item: any, idx: number) => {
+          const valRaw = getRobustValue(item, ['ValorGasto', 'valor', 'monto', 'total', 'montoRubro']);
+          const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
+          
+          const gasto = getRobustValue(item, ['GastoTransporte', 'NumGasto', 'numeroGasto', 'gasto', 'secuencia']);
+          const transporte = getRobustValue(item, ['Transporte', 'numeroTransporte', 'vehiculo', 'matricula']);
+          const factura = getRobustValue(item, ['NumFactura', 'factura', 'referencia', 'numeroFactura']);
+          const estGasto = getRobustValue(item, ['Estado', 'estado_gasto', 'status']);
 
-        return {
-          id: String(item.id || idx),
-          numeroRegistro: String(factura || 'N/A'),
-          codigoProveedor: String(item.AgenteTransporte || proveedorId),
-          numeroFactura: String(factura || ''),
-          valorTotal: valNumeric,
-          fechaRegistro: item.FechaRegistro || new Date().toISOString(),
-          estado: item.Estado || 'A',
-          numeroGasto: String(gasto || 'N/A'),
-          transporte: String(transporte || 'N/A'),
-          estadoGasto: String(estGasto || 'N/A')
-        };
-      });
+          return {
+            id: String(item.id || idx),
+            numeroRegistro: String(getRobustValue(item, ['id', 'numeroRegistro']) || 'N/A'),
+            codigoProveedor: String(getRobustValue(item, ['AgenteTransporte', 'proveedor']) || proveedorId),
+            numeroFactura: String(factura || ''),
+            valorTotal: valNumeric,
+            fechaRegistro: item.FechaRegistro || new Date().toISOString(),
+            estado: item.Estado || 'A',
+            numeroGasto: String(gasto || 'N/A'),
+            transporte: String(transporte || 'N/A'),
+            estadoGasto: String(estGasto || 'N/A')
+          };
+        });
       
       setRegistros(mappedData);
     } catch (error) {
@@ -311,7 +316,10 @@ export default function ConsultaRegistrosPage() {
                                               </div>
                                             </TableCell>
                                             <TableCell className="text-center">
-                                              <span className="text-xs font-bold text-muted-foreground uppercase">{item.estadoGasto || 'N/A'}</span>
+                                              <div className="inline-flex items-center gap-2 text-primary">
+                                                <ShieldCheck className="h-3.5 w-3.5 opacity-50" />
+                                                <span className="text-xs font-bold uppercase">{item.estadoGasto || 'N/A'}</span>
+                                              </div>
                                             </TableCell>
                                             <TableCell className="text-right pr-8">
                                                <div className="flex items-center justify-end gap-1 font-black text-lg tracking-tighter text-gray-900">
@@ -355,3 +363,4 @@ export default function ConsultaRegistrosPage() {
     </div>
   );
 }
+
