@@ -13,8 +13,8 @@ import { Badge } from "@/components/ui/badge";
 
 interface TransportItem {
   id: string;
-  numeroTransporte: string;
-  numeroGasto: string;
+  numeroTransporte: string | number;
+  numeroGasto: string | number;
   estatus: string;
   placa: string;
   valor: number;
@@ -147,19 +147,14 @@ export default function RegistroFacturasPage() {
           return;
         }
 
-        const valRaw = getRobustValue(item, ['valorGasto', 'VALOR', 'valor', 'monto', 'ValorGasto', 'Valor']);
-        const itemValor = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
-        
-        const gasto = getRobustValue(item, ['NumeroGasto', 'Gasto', 'num_gasto', 'secuencia', 'numeroGasto', 'NumGasto']) || 'N/A';
-        const placa = getRobustValue(item, ['Placa', 'Vehiculo', 'Matricula', 'placa_vehiculo', 'PLACA']) || 'N/A';
 
         const nuevoTransporte: TransportItem = {
           id: crypto.randomUUID(),
-          numeroTransporte: String(getRobustValue(item, ['Transporte', 'numeroTransporte', 'NUMERO_TRANSPORTE']) || rawInput), 
-          numeroGasto: String(gasto),
-          estatus: estatus,
-          placa: String(placa),
-          valor: itemValor
+          numeroTransporte: Number(item.Transporte) || 'N/A', 
+          numeroGasto: Number(item.GastoTransporte) || 'N/A',
+          estatus: item.Estado,
+          placa: String(item.Placa || 'N/A'),
+          valor: item.valorGasto || 0
         };
 
         setListaTransportes(prev => [...prev, nuevoTransporte]);
