@@ -7,9 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { registroGastosTransporte } from '@/services/registroGastosTransporte.service';
+import { serviciosService } from '@/services/servicios.service';
 import { Loader2, Calendar as CalendarIcon, Package, CheckCircle2, Clock, ChevronDown, FileDown, RotateCcw, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Search, ReceiptText, X, Hash, ShieldCheck } from 'lucide-react';
-import { format, subDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { format, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -42,6 +42,7 @@ interface RegistroFactura {
   numeroGasto: string;
   transporte: string;
   estadoGasto?: string;
+  procesadoFisico?: boolean;
 }
 
 interface GrupoDashboard {
@@ -54,21 +55,18 @@ interface GrupoDashboard {
   items: RegistroFactura[];
 }
 
-const FISICOS_STORAGE_KEY = 'RGT_ENTREGADOS_FISICOS';
-
 export default function DashboardPage() {
   const [registros, setRegistros] = useState<RegistroFactura[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [entregadosFisicos, setEntregadosFisicos] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("PENDIENTE");
   const [invoiceFilter, setInvoiceFilter] = useState<string>("");
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 30),
-    to: new Date(),
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
   });
 
   const getRobustValue = (obj: any, keys: string[]) => {
@@ -83,21 +81,25 @@ export default function DashboardPage() {
     return undefined;
   };
 
+  const formatSmallDateTime = (date: Date) => format(date, "yyyy-MM-dd HH:mm:ss");
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       const userCode = String(user?.usuario || user?.codigo_usuario || '');
+      const start = dateRange?.from ? startOfDay(dateRange.from) : startOfMonth(new Date());
+      const end = dateRange?.to ? endOfDay(dateRange.to) : endOfMonth(new Date());
+      const fecha_inicio = formatSmallDateTime(start);
+      const fecha_fin = formatSmallDateTime(end);
 
-      const resp = await registroGastosTransporte.getAll();
-      const rawData = resp.data || [];
+      const resp = await serviciosService.getInformacionFacturasGastosTransportes(fecha_inicio, fecha_fin);
+      const rawData = Array.isArray(resp.data) ? resp.data : [];
       
+      console.log("Datos crudos recibidos:", rawData);
+
       const mappedData: RegistroFactura[] = rawData
-        .filter((item: any) => {
-          const itemProv = String(getRobustValue(item, ['AgenteTransporte', 'codigoProveedor', 'proveedor']) || '');
-          return userCode ? itemProv.includes(userCode) || userCode.includes(itemProv) : true;
-        })
         .map((item: any, idx: number) => {
           const valRaw = getRobustValue(item, ['ValorGasto', 'valor', 'monto', 'total', 'montoRubro']);
           const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
@@ -105,38 +107,37 @@ export default function DashboardPage() {
           const gasto = getRobustValue(item, ['GastoTransporte', 'NumGasto', 'numeroGasto', 'gasto', 'secuencia']);
           const transporte = getRobustValue(item, ['Transporte', 'numeroTransporte', 'vehiculo', 'matricula']);
           const factura = getRobustValue(item, ['NumFactura', 'factura', 'referencia', 'numeroFactura']);
-          const estGasto = getRobustValue(item, ['Estado', 'estado_gasto', 'status']);
+          const fechaRegistroValue = getRobustValue(item, ['FechaRegistro', 'fechaRegistro', 'Fecha', 'fecha', 'fecha_registro']);
+          const estGasto = getRobustValue(item, ['EstadoGasto', 'estadoGasto', 'Estado', 'estado_gasto', 'status']);
+          const procesadoFisicoRaw = getRobustValue(item, ['ProcesadoFisico', 'procesadoFisico', 'procesado_fisico']);
+          const procesadoFisico = procesadoFisicoRaw != null
+            ? Boolean(procesadoFisicoRaw)
+            : undefined;
+          const codigoProveedorItem = String(getRobustValue(item, ['AgenteTransporte', 'proveedor', 'codigoProveedor']) || '');
 
           return {
             id: String(item.id || idx),
             numeroRegistro: String(factura || 'N/A'),
-            codigoProveedor: String(getRobustValue(item, ['AgenteTransporte', 'proveedor']) || userCode),
+            codigoProveedor: codigoProveedorItem,
             numeroFactura: String(factura || ''),
             valorTotal: valNumeric,
-            fechaRegistro: item.FechaRegistro || item.fechaRegistro || new Date().toISOString(),
+            fechaRegistro: String(fechaRegistroValue || item.FechaRegistro || item.fechaRegistro || ''),
             estado: item.Estado || item.estado || 'A',
             numeroGasto: String(gasto || 'N/A'),
             transporte: String(transporte || 'N/A'),
-            estadoGasto: String(estGasto || 'N/A')
+            estadoGasto: String(estGasto || 'N/A'),
+            procesadoFisico
           };
         });
 
       setRegistros(mappedData);
 
-      const storedFisicos = localStorage.getItem(FISICOS_STORAGE_KEY);
-      if (storedFisicos) {
-        try {
-          setEntregadosFisicos(new Set(JSON.parse(storedFisicos)));
-        } catch (e) {
-          console.error("Error parsing fisicos storage", e);
-        }
-      }
     } catch (error) {
       console.error("Error cargando dashboard:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
     loadData();
@@ -146,9 +147,6 @@ export default function DashboardPage() {
     if (!val || val === 'N/A') return 'N/A';
     if (val.includes('-')) return val;
     const clean = val.replace(/\D/g, '');
-    if (clean.length >= 13) {
-      return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
-    }
     if (clean.length > 3) {
       return `${clean.slice(0, 3)}-${clean.slice(3)}`;
     }
@@ -201,12 +199,12 @@ export default function DashboardPage() {
     });
 
     return Object.values(groups).filter(grupo => {
-      const isEntregado = entregadosFisicos.has(grupo.keyFactura);
+      const isEntregado = grupo.items.some(item => item.procesadoFisico);
       if (statusFilter === "ENTREGADO") return isEntregado;
       if (statusFilter === "PENDIENTE") return !isEntregado;
       return true;
     }).sort((a, b) => new Date(b.fechaRegistro).getTime() - new Date(a.fechaRegistro).getTime());
-  }, [registros, statusFilter, invoiceFilter, entregadosFisicos, dateRange]);
+  }, [registros, statusFilter, invoiceFilter, dateRange]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -245,12 +243,38 @@ export default function DashboardPage() {
     setSelectedIds(next);
   };
 
-  const handleToggleEntregado = (keyFactura: string, checked: boolean) => {
-    const next = new Set(entregadosFisicos);
-    if (checked) next.add(keyFactura);
-    else next.delete(keyFactura);
-    setEntregadosFisicos(next);
-    localStorage.setItem(FISICOS_STORAGE_KEY, JSON.stringify(Array.from(next)));
+  const handleToggleEntregado = async (keyFactura: string, checked: boolean) => {
+    const facturaSinGuiones = keyFactura.replace(/-/g, '');
+    try {
+      const response = await serviciosService.postActualizarEstadoEntregaFactura(facturaSinGuiones);
+      const updatedData = Array.isArray(response.data) ? response.data : [];
+      const mappedData: RegistroFactura[] = updatedData.map((item: any, idx: number) => {
+        const valRaw = getRobustValue(item, ['ValorGasto', 'valor', 'monto', 'total', 'montoRubro']);
+        const valNumeric = typeof valRaw === 'string' ? parseFloat(valRaw.replace(',', '.')) : Number(valRaw || 0);
+        const gasto = getRobustValue(item, ['GastoTransporte', 'NumGasto', 'numeroGasto', 'gasto', 'secuencia']);
+        const transporte = getRobustValue(item, ['Transporte', 'numeroTransporte', 'vehiculo', 'matricula']);
+        const factura = getRobustValue(item, ['NumFactura', 'factura', 'referencia', 'numeroFactura']);
+        const fechaRegistroValue = getRobustValue(item, ['FechaRegistro', 'fechaRegistro', 'Fecha', 'fecha', 'fecha_registro']);
+        const estGasto = getRobustValue(item, ['EstadoGasto', 'estadoGasto', 'Estado', 'estado_gasto', 'status']);
+
+        return {
+          id: String(item.id || idx),
+          numeroRegistro: String(factura || 'N/A'),
+          codigoProveedor: String(getRobustValue(item, ['AgenteTransporte', 'proveedor']) || ''),
+          numeroFactura: String(factura || ''),
+          valorTotal: valNumeric,
+          fechaRegistro: String(fechaRegistroValue ?? item.FechaRegistro ?? item.fechaRegistro ?? ''),
+          estado: item.Estado || item.estado || 'A',
+          numeroGasto: String(gasto || 'N/A'),
+          transporte: String(transporte || 'N/A'),
+          estadoGasto: String(estGasto || 'N/A'),
+          procesadoFisico: Boolean(getRobustValue(item, ['ProcesadoFisico', 'procesadoFisico', 'ProcesadoFisico', 'procesado_fisico']))
+        };
+      });
+      setRegistros(mappedData);
+    } catch (error) {
+      console.error('Error actualizando estado de entrega:', error);
+    }
   };
 
   const itemsParaExportar = registros.filter(r => selectedIds.has(r.id));
@@ -283,7 +307,7 @@ export default function DashboardPage() {
       doc.text(`CÓDIGO PROVEEDOR: ${firstItem.codigoProveedor}`, 14, 38);
       doc.text(`FECHA DE PROCESO: ${format(new Date(firstItem.fechaRegistro), "dd/MM/yyyy HH:mm")}`, 14, 44);
       
-      const esFisico = entregadosFisicos.has(fKey);
+      const esFisico = items.some(item => item.procesadoFisico);
       doc.setFontSize(11);
       doc.setTextColor(esFisico ? 22 : 220, esFisico ? 163 : 38, esFisico ? 74 : 38);
       doc.text(`ENTREGA FÍSICA: ${esFisico ? 'CONFIRMADA' : 'PENDIENTE'}`, 14, 52);
@@ -324,7 +348,7 @@ export default function DashboardPage() {
       'Transporte': reg.transporte || 'N/A',
       'Monto': reg.valorTotal,
       'Estado Gasto': reg.estadoGasto || 'N/A',
-      'Entregado Físico': entregadosFisicos.has(reg.numeroFactura) ? 'SÍ' : 'NO'
+      'Entregado Físico': reg.procesadoFisico ? 'SÍ' : 'NO'
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -333,7 +357,7 @@ export default function DashboardPage() {
   };
 
   const handleClearFilter = () => {
-    setDateRange({ from: subDays(new Date(), 30), to: new Date() });
+    setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
     setStatusFilter("PENDIENTE");
     setInvoiceFilter("");
   };
@@ -341,8 +365,8 @@ export default function DashboardPage() {
   const anyFilterActive = invoiceFilter.trim() !== "" || statusFilter !== "PENDIENTE";
 
   const totalFacturasRegistradas = new Set(registros.map(r => r.numeroFactura)).size;
-  const totalFacturasProcesadas = new Set(registros.filter(r => entregadosFisicos.has(r.numeroFactura)).map(r => r.numeroFactura)).size;
-  const totalFacturasPendientesFisico = new Set(registros.filter(r => !entregadosFisicos.has(r.numeroFactura)).map(r => r.numeroFactura)).size;
+  const totalFacturasProcesadas = new Set(registros.filter(r => r.procesadoFisico).map(r => r.numeroFactura)).size;
+  const totalFacturasPendientesFisico = new Set(registros.filter(r => !r.procesadoFisico).map(r => r.numeroFactura)).size;
 
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-gray-50/50">
@@ -427,6 +451,7 @@ export default function DashboardPage() {
               </Popover>
               <div className="flex gap-2">
                 <Button variant="outline" size="lg" onClick={handleDownloadPDF} disabled={selectedIds.size === 0} className="border-2 border-primary text-primary font-black h-12 px-6 rounded-xl"><FileDown className="mr-3 h-5 w-5" /> EXPORTAR PDF {selectedIds.size > 0 && `(${selectedIds.size})`}</Button>
+                <Button variant="outline" size="lg" onClick={handleDownloadExcel} disabled={selectedIds.size === 0} className="border-2 border-green-600 text-green-600 font-black h-12 px-6 rounded-xl hover:bg-green-50"><FileSpreadsheet className="mr-3 h-5 w-5" /> EXPORTAR XLSX {selectedIds.size > 0 && `(${selectedIds.size})`}</Button>
               </div>
             </div>
           </div>
@@ -457,7 +482,7 @@ export default function DashboardPage() {
                     pagedGroups.map((grupo) => {
                       const isExpanded = expandedRows.has(grupo.keyFactura);
                       const groupAllSelected = grupo.items.every(i => selectedIds.has(i.id));
-                      const isFisicoEntregado = entregadosFisicos.has(grupo.keyFactura);
+                      const isFisicoEntregado = grupo.items.some(item => item.procesadoFisico);
                       
                       return (
                         <React.Fragment key={grupo.keyFactura}>

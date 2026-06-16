@@ -66,6 +66,7 @@ export const serviciosService = {
         Transporte: String(item.numeroTransporte),
         GastoTransporte: String(item.numeroGasto),
         ValorGasto: Number(item.valor),
+        ProcesadoFisico: false,
         FechaRegistro: now,
         Estado: 'A'
       };
@@ -114,4 +115,44 @@ export const serviciosService = {
     return response.json();
   },
 
+
+  async getInformacionFacturasGastosTransportes(fecha_inicio: string, fecha_fin: string): Promise<BodyListResponse<any>> {
+    const response = await fetch(API_URL + '/getFacturasPorFechas', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      body: JSON.stringify({ 
+        fecha_inicio: fecha_inicio, 
+        fecha_fin: fecha_fin, 
+      }),
+      cache: 'no-store'
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Error desconocido' }));
+      throw new Error(errorBody.message || 'Error al consultar información de gastos');
+    }
+    return response.json();
+  },
+
+
+    async postActualizarEstadoEntregaFactura(factura: string): Promise<BodyListResponse<any>> {
+    const response = await fetch(API_URL + '/actualizarFacturaEstadoEntrega', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      body: JSON.stringify({ 
+        factura: factura, 
+      }),
+      cache: 'no-store'
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Error desconocido' }));
+      throw new Error(errorBody.message || 'Error al consultar información de gastos');
+    }
+    return response.json();
+  },
 };

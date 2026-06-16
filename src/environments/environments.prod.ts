@@ -13,7 +13,8 @@ export const environment = {
     //apiURL : 'http://localhost:5400',
     apiURL : 'https://apps.chaide.com/seguridades',
     
-    apiURL_RGT: 'https://apps.chaide.com/RGTback',
+    apiURL_RGT: 'http://localhost:5400',
+    //apiURL_RGT: 'https://apps.chaide.com/RGTback',
 
     tituloSistema: 'SISTEMA INTEGRADO DE REGISTRO DE GASTOS DE TRANSPORTES',
 };

@@ -113,6 +113,7 @@ export interface RegistroGastosTransporte {
   Transporte: string;
   GastoTransporte?: string;
   ValorGasto?: number;
+  ProcesadoFisico: boolean;
   FechaRegistro: string;
   Estado: string;
 }
